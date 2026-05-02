@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MSG_FILE="${1:-}"
+if [[ -z "$MSG_FILE" || ! -f "$MSG_FILE" ]]; then
+  exit 0
+fi
+
+python3 - "$MSG_FILE" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8", errors="replace")
+lines = text.splitlines()
+
+# Remove trailers that can create extra "contributors" on GitHub.
+# Intentionally aggressive: keep commit messages "single-author" by default.
+drop_patterns = [
+    r"^Co-authored-by:\s+.*$",
+    r"^Made-with:\s+.*$",
+]
+drop_re = re.compile("|".join(f"(?:{p})" for p in drop_patterns), re.IGNORECASE)
+
+out = [ln for ln in lines if not drop_re.match(ln)]
+
+# Trim trailing blank lines
+while out and not out[-1].strip():
+    out.pop()
+
+path.write_text("\n".join(out) + "\n", encoding="utf-8")
+PY

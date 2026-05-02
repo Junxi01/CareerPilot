@@ -6,6 +6,16 @@ import com.careerpilot.api.ApiResponse
 import com.careerpilot.auth.AuthConfig
 import com.careerpilot.auth.JwtService
 import com.careerpilot.repo.UserRepository
+import com.careerpilot.targetcompanies.TargetCompanyRepository
+import com.careerpilot.targetcompanies.TargetCompanyValidation
+import com.careerpilot.targetcompanies.CreateTargetCompanyRequest
+import com.careerpilot.targetcompanies.PatchTargetCompanyRequest
+import com.careerpilot.jobleads.JobLeadRepository
+import com.careerpilot.jobleads.JobLeadValidation
+import com.careerpilot.jobleads.CreateJobLeadRequest
+import com.careerpilot.jobleads.PatchJobLeadRequest
+import com.careerpilot.jobleads.InsertResult
+import com.careerpilot.jobleads.UpdateResult
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
@@ -24,6 +34,9 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.request.receive
+import io.ktor.server.routing.patch
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
@@ -56,6 +69,8 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
     val db = DatabaseModule(cfg.db)
     val healthRepo = HealthRepository(db)
     val userRepo = UserRepository(db)
+    val targetCompanies = TargetCompanyRepository(db)
+    val jobLeads = JobLeadRepository(db)
 
     val authCfg = AuthConfig.fromEnv(env)
     val jwt = JwtService(authCfg)
@@ -169,6 +184,186 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                         ApiResponse.fail("unauthorized", "User not found"),
                     )
                 call.respond(ApiResponse.ok(com.careerpilot.auth.MeResponse(user = user.toPublic())))
+            }
+
+            route("/api/target-companies") {
+                get {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val items = targetCompanies.listByUser(userId).map { it.toDto() }
+                    call.respond(ApiResponse.ok(items))
+                }
+
+                post {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val req = call.receive<CreateTargetCompanyRequest>()
+                    val failure = TargetCompanyValidation.validateCreate(req)
+                    if (failure != null) {
+                        return@post call.respond(
+                            HttpStatusCode.BadRequest,
+                            ApiResponse.fail(failure.code, failure.message),
+                        )
+                    }
+                    val norm = TargetCompanyValidation.normalizeCreate(req)
+                    val created =
+                        targetCompanies.insert(
+                            userId = userId,
+                            name = norm.name,
+                            careersUrl = norm.careers_url,
+                            keywords = norm.keywords,
+                            locations = norm.locations,
+                            active = norm.active,
+                            notes = norm.notes,
+                        )
+                    call.respond(HttpStatusCode.Created, ApiResponse.ok(created.toDto()))
+                }
+
+                get("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val item = targetCompanies.findById(userId, id)
+                        ?: return@get call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(item.toDto()))
+                }
+
+                patch("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@patch call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val req = call.receive<PatchTargetCompanyRequest>()
+                    val failure = TargetCompanyValidation.validatePatch(req)
+                    if (failure != null) {
+                        return@patch call.respond(
+                            HttpStatusCode.BadRequest,
+                            ApiResponse.fail(failure.code, failure.message),
+                        )
+                    }
+                    val patch = TargetCompanyValidation.normalizePatch(req)
+                    val updated = targetCompanies.update(userId, id, patch)
+                        ?: return@patch call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(updated.toDto()))
+                }
+
+                delete("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val ok = targetCompanies.softDelete(userId, id)
+                    if (!ok) return@delete call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(Unit))
+                }
+            }
+
+            route("/api/job-leads") {
+                get {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+
+                    val companyId = call.request.queryParameters["company_id"]?.toLongOrNull()
+                    val keyword = call.request.queryParameters["keyword"]?.trim()?.takeIf { it.isNotBlank() }
+                    val minMatchScore = call.request.queryParameters["min_match_score"]?.toDoubleOrNull()
+                    val savedToApplications =
+                        call.request.queryParameters["saved_to_applications"]?.lowercase()?.let { v ->
+                            when (v) {
+                                "true", "1", "yes" -> true
+                                "false", "0", "no" -> false
+                                else -> null
+                            }
+                        }
+
+                    val items =
+                        jobLeads
+                            .listByUser(
+                                userId = userId,
+                                companyId = companyId,
+                                keyword = keyword,
+                                minMatchScore = minMatchScore,
+                                savedToApplications = savedToApplications,
+                            ).map { it.toDto() }
+                    call.respond(ApiResponse.ok(items))
+                }
+
+                post {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val req = call.receive<CreateJobLeadRequest>()
+                    val failure = JobLeadValidation.validateCreate(req)
+                    if (failure != null) {
+                        return@post call.respond(
+                            HttpStatusCode.BadRequest,
+                            ApiResponse.fail(failure.code, failure.message),
+                        )
+                    }
+                    val norm = JobLeadValidation.normalizeCreate(req)
+                    val discoveredAt = JobLeadValidation.defaultDiscoveredAtIso(norm)
+                    val res =
+                        jobLeads.insert(
+                            userId = userId,
+                            companyId = norm.company_id,
+                            roleTitle = norm.role_title,
+                            jobUrl = norm.job_url,
+                            location = norm.location,
+                            rawDescription = norm.raw_description,
+                            matchedKeywords = norm.matched_keywords,
+                            matchScore = norm.match_score,
+                            discoveredAtIso = discoveredAt,
+                            savedToApplications = norm.saved_to_applications,
+                        )
+                    when (res) {
+                        is InsertResult.Created -> call.respond(HttpStatusCode.Created, ApiResponse.ok(res.record.toDto()))
+                        InsertResult.CompanyNotFound ->
+                            call.respond(HttpStatusCode.NotFound, ApiResponse.fail("company_not_found", "Target company not found"))
+                        InsertResult.DuplicateJobUrl ->
+                            call.respond(HttpStatusCode.Conflict, ApiResponse.fail("duplicate_job_url", "job_url already exists"))
+                    }
+                }
+
+                get("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val item = jobLeads.findById(userId, id)
+                        ?: return@get call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(item.toDto()))
+                }
+
+                patch("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@patch call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val req = call.receive<PatchJobLeadRequest>()
+                    val failure = JobLeadValidation.validatePatch(req)
+                    if (failure != null) {
+                        return@patch call.respond(
+                            HttpStatusCode.BadRequest,
+                            ApiResponse.fail(failure.code, failure.message),
+                        )
+                    }
+                    val patch = JobLeadValidation.normalizePatch(req)
+                    when (val res = jobLeads.update(userId, id, patch)) {
+                        is UpdateResult.Updated -> call.respond(ApiResponse.ok(res.record.toDto()))
+                        UpdateResult.NotFound -> call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                        UpdateResult.DuplicateJobUrl ->
+                            call.respond(HttpStatusCode.Conflict, ApiResponse.fail("duplicate_job_url", "job_url already exists"))
+                    }
+                }
+
+                delete("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val ok = jobLeads.delete(userId, id)
+                    if (!ok) return@delete call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(Unit))
+                }
             }
         }
     }

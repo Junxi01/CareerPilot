@@ -52,6 +52,35 @@ curl -s http://localhost:8080/api/auth/register \
   -d '{"email":"you@example.com","password":"password123","displayName":"You"}'
 ```
 
+### Target companies API (Day 7)
+
+All endpoints require `Authorization: Bearer <token>` and are scoped to the authenticated user.
+
+- `GET /api/target-companies`
+- `POST /api/target-companies`
+- `GET /api/target-companies/{id}`
+- `PATCH /api/target-companies/{id}`
+- `DELETE /api/target-companies/{id}`
+
+Delete strategy:
+
+- `DELETE` is a **soft delete**: it sets `active=false` instead of removing the row.
+
+### Job leads API (Day 8)
+
+All endpoints require `Authorization: Bearer <token>` and are scoped to job leads under the authenticated user's target companies.
+
+- `GET /api/job-leads` (filters: `company_id`, `keyword`, `min_match_score`, `saved_to_applications`)
+- `POST /api/job-leads`
+- `GET /api/job-leads/{id}`
+- `PATCH /api/job-leads/{id}`
+- `DELETE /api/job-leads/{id}`
+
+Notes:
+
+- Duplicate prevention: `job_url` is unique **per user** (enforced at the API/repository level).
+- `matched_keywords` is stored as JSON (MySQL `JSON` column; H2 tests use `TEXT` with the same JSON encoding).
+
 ### Database connectivity (Day 5)
 
 This backend uses:

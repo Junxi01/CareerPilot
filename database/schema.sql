@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS target_companies (
   locations_json JSON NULL,
   role_keywords_json JSON NULL,
   tech_keywords_json JSON NULL,
+  notes TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -41,7 +42,10 @@ CREATE TABLE IF NOT EXISTS job_leads (
   url VARCHAR(2048) NOT NULL,
   location VARCHAR(255) NULL,
   location_raw VARCHAR(255) NULL,
+  raw_description MEDIUMTEXT NULL,
   discovered_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  match_score DECIMAL(5,2) NULL,
+  saved_to_applications TINYINT(1) NOT NULL DEFAULT 0,
   status VARCHAR(32) NOT NULL DEFAULT 'new',
   source VARCHAR(64) NOT NULL DEFAULT 'career_page',
   matched_keywords_json JSON NULL,
@@ -52,6 +56,8 @@ CREATE TABLE IF NOT EXISTS job_leads (
   UNIQUE KEY uq_job_leads_url (url(190)),
   KEY ix_job_leads_company_id (company_id),
   KEY ix_job_leads_discovered_at (discovered_at),
+  KEY ix_job_leads_saved (saved_to_applications),
+  KEY ix_job_leads_match_score (match_score),
   CONSTRAINT fk_job_leads_company
     FOREIGN KEY (company_id) REFERENCES target_companies (id)
     ON DELETE CASCADE

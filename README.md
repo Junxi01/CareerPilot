@@ -53,6 +53,17 @@ The backend already includes a minimal, working baseline:
 
 See `backend/README.md` for run commands and examples.
 
+### Git hygiene: keep commits single-author
+
+If you don't want GitHub to show AI/tools (e.g. "Cursor") as contributors, install the repo-local git hook once:
+
+```bash
+cd careerpilot-local
+./scripts/install-git-hooks.sh
+```
+
+This hook strips commit-message trailers like `Co-authored-by:` / `Made-with:` at commit time.
+
 ### Folder structure
 
 ```

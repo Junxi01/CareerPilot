@@ -28,6 +28,7 @@ Per-user target companies and their public careers page URL(s) plus filtering cr
   - `careers_page_url`
   - `active` (boolean)
   - `locations_json`, `role_keywords_json`, `tech_keywords_json` (JSON arrays)
+  - `notes` (freeform text)
 - **Indexes**:
   - `active` (**required**)
   - `user_id`
@@ -40,7 +41,10 @@ Job leads discovered from user-configured public careers pages.
   - `company_id` → `target_companies.id` (**required index**)
   - `title`, `url` (unique by URL prefix)
   - `location` (normalized display) and `location_raw` (optional)
+  - `raw_description` (optional text)
   - `discovered_at` (**required index**)
+  - `match_score` (optional numeric score)
+  - `saved_to_applications` (boolean)
   - `status` (e.g. `new`, `ignored`, `applied`)
   - `source` (e.g. `career_page`)
   - `matched_keywords_json` (JSON array), `raw_json` (optional JSON blob)
