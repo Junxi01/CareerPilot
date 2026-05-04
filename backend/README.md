@@ -121,6 +121,18 @@ All endpoints require `Authorization: Bearer <token>`. List and mutation operati
 
 There is **no per-user timezone** in the API yet. `/today` and “what counts as today” follow **server local time**. Clients should read/write instants as **ISO-8601** strings from/to JSON so parsing stays consistent across frontend and backend.
 
+### Dashboard (aggregated)
+
+All endpoints require `Authorization: Bearer <token>` and return only data for the authenticated user. Aggregations are always filtered by the authenticated `user_id` (directly on `applications` / `reminders`, or via `applications` / `target_companies` joins for interviews, job leads, and prep tasks).
+
+- `GET /api/dashboard/stats` — counts and `response_rate` (see `DashboardStatsDto` / `DashboardModels.kt` for definitions). `COUNT(*)` queries always yield numeric zeros when there are no rows (never null / never divide-by-zero for `response_rate`).
+- **This week** = from **Monday 00:00** (inclusive) through **now** (inclusive, `Instant.now()` at query time) in the **JVM default timezone**, compared as timestamps on `applications.created_at` and `job_leads.discovered_at`.
+- **`follow_ups_due`** = open reminders with `due_at` strictly before **midnight at the start of the next calendar day** (server-local), plus applications with `next_follow_up_date` set and **≤ today’s calendar date** (server-local). This is a “due or overdue” count, not the same 14-day planning window as the list endpoint.
+- `GET /api/dashboard/follow-ups` — merged list of application `next_follow_up_date` rows (on or before **today + 14 calendar days**) and open reminders with `due_at` before the **exclusive** instant at **start of day 15** from today, merged and sorted **soonest due first** (see `DashboardRepository.listFollowUps`).
+- `GET /api/dashboard/recent-job-leads` — up to 10 leads for the user, **`ORDER BY discovered_at DESC, id DESC`** (same shape as job-lead DTOs).
+- `GET /api/dashboard/upcoming-interviews` — interviews with non-null `scheduled_at` from **today’s local midnight** onward, **`ORDER BY scheduled_at ASC, id ASC`** (max 20).
+- `GET /api/dashboard/prep-summary` — prep tasks due **today** (server-local calendar date), `status <> 'done'`, with application/company context.
+
 ### Database connectivity (Day 5)
 
 This backend uses:

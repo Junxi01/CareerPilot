@@ -5,6 +5,7 @@ import com.careerpilot.db.DatabaseModule
 import java.sql.Statement
 import java.sql.Timestamp
 import java.time.Instant
+import java.time.ZoneId
 
 class InterviewRepository(
     private val db: DatabaseModule,
@@ -22,6 +23,34 @@ class InterviewRepository(
                 """.trimIndent(),
             ).use { ps ->
                 ps.setLong(1, userId)
+                ps.executeQuery().use { rs ->
+                    val out = mutableListOf<InterviewRecord>()
+                    while (rs.next()) out += readRecord(rs)
+                    return out
+                }
+            }
+        }
+    }
+
+    /** Interviews from today (server-local midnight) onward, soonest first. */
+    fun listUpcomingForUser(userId: Long, zone: ZoneId, limit: Int = 20): List<InterviewRecord> {
+        val start = java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant()
+        db.openConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                SELECT i.id, i.application_id, i.round_name, i.scheduled_at, i.status, i.notes
+                FROM interviews i
+                JOIN applications a ON a.id = i.application_id
+                WHERE a.user_id = ?
+                  AND i.scheduled_at IS NOT NULL
+                  AND i.scheduled_at >= ?
+                ORDER BY i.scheduled_at ASC, i.id ASC
+                LIMIT ?
+                """.trimIndent(),
+            ).use { ps ->
+                ps.setLong(1, userId)
+                ps.setTimestamp(2, Timestamp.from(start))
+                ps.setInt(3, limit)
                 ps.executeQuery().use { rs ->
                     val out = mutableListOf<InterviewRecord>()
                     while (rs.next()) out += readRecord(rs)

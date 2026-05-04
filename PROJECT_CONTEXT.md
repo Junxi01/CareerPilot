@@ -24,7 +24,7 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 |------|------|------|
 | 后端 | Kotlin + Ktor，Gradle | `backend/settings.gradle.kts`，`backend/build.gradle.kts`；入口 `com.careerpilot.ApplicationKt`，`application.conf` 配端口 |
 | 前端 | React 18 + TypeScript + Vite 5 | `frontend/package.json`、`frontend/tsconfig.json`、`frontend/vite.config.ts` |
-| 数据库 | **计划** MySQL | `database/schema.sql` / `seed.sql` 仍为占位；未接业务表 |
+| 数据库 | MySQL 8.0（开发可 H2） | `database/schema.sql` / `seed.sql` 已有业务表定义；后端通过 JDBC 读写 |
 | 脚本 | **计划** Python | `scripts/requirements.txt` 占位；自动化待实现 |
 | 部署 | Docker Compose（阶段 1） | **`mysql:8.0` 服务**：持久卷、healthcheck、首次初始化挂载 `database/schema.sql`。后端/前端尚未加入 Compose。 |
 | 密钥 | `.env`（不提交） | 模板见 `.env.example` |
@@ -79,24 +79,35 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 - BCrypt 密码哈希：`backend/src/main/kotlin/com/careerpilot/auth/PasswordHasher.kt`
 - JWT 必要配置：`JWT_SECRET` **必须显式配置**（为空或默认 `change-me...` 将拒绝启动）
 
-### 未实现 / 占位（业务与基础设施）
+### Day 7+ — 领域 API 与 Dashboard（后端已完成；细节见 `backend/README.md`）
 
-- **无**真实领域模型 API（CRUD/业务规则）
-- **无**后端迁移工具（Flyway/Liquibase）；当前策略为外部初始化（Compose MySQL init 脚本）
-- **无** Compose 中的 backend / frontend 服务（目前 Compose 仅 MySQL）
-- **无** Python 抓取/定时等脚本逻辑
-- **无** AI 提供商集成与 mock 模式的具体实现（`.env.example` 仅预留变量）
+以下均在 **`Authorization: Bearer <JWT>`** 下按 `user_id` 隔离（具体校验见各 Repository / 路由）：
+
+- **`/api/target-companies`**：目标公司 CRUD
+- **`/api/applications`**：投递 CRUD、状态过滤、嵌套 **interviews** / **reminders** 创建、与 **job_leads** 的关联/去重等（见 `backend/README.md`）
+- **`/api/interviews`**：列表与按 id 更新/删除（归属经 application 校验）
+- **`/api/reminders`**：列表、`/today`、完成/删除等
+- **`/api/job-leads`**：线索列表/筛选/CRUD、`save-as-application` 等
+- **`/api/dashboard`**（聚合）：`stats`、`follow-ups`、`recent-job-leads`（按 `discovered_at` 降序）、`upcoming-interviews`（按 `scheduled_at` 升序）、`prep-summary`；统计口径与「本周」边界见 **`backend/README.md` → Dashboard**
+
+### 未实现 / 仍占位
+
+- **无**后端内置迁移（Flyway/Liquibase）；仍以 **外部** `schema.sql` 初始化为主
+- **`docker-compose.yml`**：当前 **仅 MySQL** 服务；backend/frontend 可用 **`scripts/local-up.sh`** 在宿主启动（见根 `README.md`）
+- **无** Python 抓取/定时等脚本业务逻辑（`scripts/` 仍为占位或最小骨架）
+- **无** AI 提供商真实编排（`.env.example` 预留变量；prep/plan 相关表已存在，产品化调用待实现）
+- **前端**：仍为最小壳；与上述 API 的类型化集成待做（可用 `VITE_API_BASE_URL`）
 
 ### 最近一次会话交接（模板：每次收尾覆写本小节）
 
-- **日期**：2026-05-01
-- **本次完成**：文档与代码对齐：确认后端已具备 Day 5（MySQL 连接池 + `/health/db`）与 Day 6（JWT 注册/登录/Me）最小闭环，并更新 `PROJECT_CONTEXT.md` 的进度/缺口/下一步
+- **日期**：2026-05-03
+- **本次完成**：将 **`PROJECT_CONTEXT.md` 与代码对齐**：补充 **Dashboard** 与既有领域 API 进度说明；修正 §6 中已过期的 **`/api/scaffold`** 引用为 **`GET /health`** / **`GET /api/version`**
 - **未完成 / 阻塞**：
-  - Compose 尚未加入 backend/frontend 服务；`DB_HOST` 在“宿主机跑后端”和“容器内跑后端”两种模式下取值不同（`localhost` vs `mysql`）
-  - 领域模型（companies/leads/applications 等）仍未落地 API
-- **关键路径 / 涉及文件**：`PROJECT_CONTEXT.md`, `backend/src/main/kotlin/com/careerpilot/Application.kt`, `backend/src/main/kotlin/com/careerpilot/db/DatabaseModule.kt`, `backend/src/main/kotlin/com/careerpilot/auth/*`, `docker-compose.yml`, `.env.example`
-- **已运行验证**：代码内已有后端测试覆盖 auth 流程（H2, MySQL mode）；DB 健康检查失败时应返回 `503`
-- **给下一对话的一句话**：优先落地第一批领域 API（例如 `target_companies` / `job_leads` 列表与创建），并把 backend 作为 Compose 服务接到 MySQL。
+  - 宿主机跑后端时 `DB_HOST=localhost` vs 容器内 `mysql` 主机名仍易混（见 `docs/local-setup.md` / `.env.example`）
+  - 前端未接业务 API；E2E 与生产 Compose 一体化视需求推进
+- **关键路径 / 涉及文件**：`PROJECT_CONTEXT.md`、`backend/README.md`、`backend/src/main/kotlin/com/careerpilot/Application.kt`、`backend/src/main/kotlin/com/careerpilot/dashboard/*`、`backend/src/test/kotlin/com/careerpilot/ScaffoldTest.kt`
+- **已运行验证**：后端 **`./gradlew test`**（含 dashboard 聚合与空数据断言）；细节以本机最后一次成功为准
+- **给下一对话的一句话**：若要接首页/仪表盘，读 `backend/README.md` 的 Dashboard 与各 `/api/*` 契约，并在 `frontend/` 做类型化 client 与路由。
 
 ---
 
@@ -130,7 +141,7 @@ npm install
 npm run typecheck
 ```
 
-**手工看后端是否起来**（若已 `gradle run` 且端口与 `application.conf` 一致）：访问 `GET /api/scaffold`。
+**手工看后端是否起来**（若已 `gradle run` 且端口与 `application.conf` 一致）：访问 **`GET /health`** 或 **`GET /api/version`**（仓库中已无 `/api/scaffold`；前端 `App.tsx` 里的 scaffold 文案为历史占位，待接真实 API 时改掉）。
 
 **MySQL（Docker Compose）**：
 
@@ -147,12 +158,11 @@ docker compose exec mysql mysql -u careerpilot -pcareerpilot_password careerpilo
 
 以下顺序可按产品节奏调整，供新对话直接 pick：
 
-1. **后端接 MySQL**：JDBC/Hikari/Exposed 或 JDBI；读 `DB_*`；健康检查 + 最小迁移策略。
-2. **Compose 扩展（可选）**：加入 `backend`（依赖 `mysql` healthy），后续再加 `frontend`。
-3. **API**：首条业务接口（如 `target_companies` 或 `job_leads` 列表）；统一 API 响应类型。
-4. **前端**：`VITE_API_BASE_URL`、fetch 封装、与后端类型对齐的首屏。
-5. **Python**：公开页拉取/解析占位 CLI，`--dry-run`，明确禁止域名列表。
-6. **AI**：抽象 `AI_MODE=mock|real`，mock 返回固定结构，real 调环境变量中的 HTTP 端点。
+1. **前端**：登录/注册、`VITE_API_BASE_URL`、统一 `ApiResponse` 解析；首屏或仪表盘消费 **`/api/dashboard/*`** 与 **`/api/applications`** 等。
+2. **Compose（可选）**：将 `backend`（及后续 `frontend`）写入 `docker-compose.yml`，与 MySQL 网络/health 对齐；文档区分宿主机跑后端 vs 全容器。
+3. **迁移（可选）**：引入 Flyway/Liquibase，与现有 `schema.sql` 初始化策略衔接。
+4. **Python**：公开职业页拉取/解析 CLI，`--dry-run`，禁止域名列表与登录站策略落地。
+5. **AI**：`AI_MODE=mock|real`、mock 固定结构、real 走 `.env` 中的 HTTP/提供商配置；与 `ai_interview_plans` / prep 流程产品化对接。
 
 ---
 

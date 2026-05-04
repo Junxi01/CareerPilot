@@ -65,6 +65,31 @@ class JobLeadRepository(private val db: DatabaseModule) {
         }
     }
 
+    /** Newest first; `user_id` enforced via `target_companies`. */
+    fun listRecentForDashboard(userId: Long, limit: Int = 10): List<JobLeadRecord> {
+        db.openConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                SELECT jl.id, jl.company_id, tc.name AS company_name, jl.title, jl.url, jl.location, jl.raw_description,
+                       jl.matched_keywords_json, jl.match_score, jl.discovered_at, jl.saved_to_applications
+                FROM job_leads jl
+                JOIN target_companies tc ON tc.id = jl.company_id
+                WHERE tc.user_id = ?
+                ORDER BY jl.discovered_at DESC, jl.id DESC
+                LIMIT ?
+                """.trimIndent(),
+            ).use { ps ->
+                ps.setLong(1, userId)
+                ps.setInt(2, limit)
+                ps.executeQuery().use { rs ->
+                    val out = mutableListOf<JobLeadRecord>()
+                    while (rs.next()) out += readRecord(rs)
+                    return out
+                }
+            }
+        }
+    }
+
     fun findById(userId: Long, id: Long): JobLeadRecord? =
         db.openConnection().use { conn -> findById(conn, userId, id) }
 

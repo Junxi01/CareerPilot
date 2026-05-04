@@ -14,11 +14,28 @@ The goal is a local app where users configure target companies + public career p
 - **Automation**: Python scripts (planned)
 - **Deployment**: Docker Compose (**MySQL service** enabled; backend/frontend wiring later)
 
+### 本地一键跑起来（推荐）
+
+**一条命令**（需已安装 Docker、JDK 21、Node；首次会自动 `npm install`、必要时自动生成 `JWT_SECRET`）：
+
+```bash
+cd careerpilot-local
+./scripts/local-up.sh
+```
+
+浏览器打开 **http://localhost:5173**。后端默认 **http://localhost:8080**；日志在 **`.logs/backend.log`**。  
+按 **Ctrl+C** 会结束前端并尝试关掉本会话启动的后端。
+
+停止后端（可选）：`./scripts/local-down.sh`；连 MySQL 一起停：`./scripts/local-down.sh --all`。
+
+更多细节与排错见 **`docs/local-setup.md`**。
+
 ### MySQL via Docker Compose
 
 ```bash
 cd careerpilot-local
 cp .env.example .env
+# Edit .env: set JWT_SECRET (e.g. openssl rand -hex 32); keep DB_HOST=localhost when the backend runs on the host.
 docker compose up -d
 docker compose ps
 ```

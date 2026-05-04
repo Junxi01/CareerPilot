@@ -31,6 +31,9 @@ import com.careerpilot.interviews.PatchInterviewRequest
 import com.careerpilot.reminders.CreateReminderRequest
 import com.careerpilot.reminders.ReminderRepository
 import com.careerpilot.reminders.ReminderValidation
+import com.careerpilot.dashboard.DashboardRecentJobLeadsDto
+import com.careerpilot.dashboard.DashboardRepository
+import com.careerpilot.dashboard.DashboardUpcomingInterviewsDto
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
@@ -60,6 +63,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.sql.SQLException
 import java.time.LocalDate
+import java.time.ZoneId
 import org.slf4j.event.Level
 import java.util.UUID
 
@@ -90,6 +94,7 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
     val applications = ApplicationRepository(db, jobLeads)
     val interviews = InterviewRepository(db, applications)
     val reminders = ReminderRepository(db, applications)
+    val dashboard = DashboardRepository(db)
 
     val authCfg = AuthConfig.fromEnv(env)
     val jwt = JwtService(authCfg)
@@ -510,6 +515,43 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                     val ok = reminders.delete(userId, id)
                     if (!ok) return@delete call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
                     call.respond(ApiResponse.ok(Unit))
+                }
+            }
+
+            route("/api/dashboard") {
+                get("stats") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    call.respond(ApiResponse.ok(dashboard.loadStats(userId)))
+                }
+
+                get("follow-ups") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    call.respond(ApiResponse.ok(dashboard.listFollowUps(userId)))
+                }
+
+                get("recent-job-leads") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val items = jobLeads.listRecentForDashboard(userId, 10).map { it.toDto() }
+                    call.respond(ApiResponse.ok(DashboardRecentJobLeadsDto(items = items)))
+                }
+
+                get("upcoming-interviews") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val items =
+                        interviews
+                            .listUpcomingForUser(userId, ZoneId.systemDefault(), 20)
+                            .map { it.toDto() }
+                    call.respond(ApiResponse.ok(DashboardUpcomingInterviewsDto(items = items)))
+                }
+
+                get("prep-summary") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    call.respond(ApiResponse.ok(dashboard.listPrepSummary(userId)))
                 }
             }
 
