@@ -1,0 +1,84 @@
+.cp-shell {
+  display: flex;
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.cp-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #0f172a;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0.75rem;
+  gap: 1rem;
+}
+
+.cp-brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  padding: 0 0.5rem 0.5rem;
+  border-bottom: 1px solid #334155;
+}
+
+.cp-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.cp-nav__link {
+  display: block;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  color: #cbd5e1;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.cp-nav__link:hover {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.cp-nav__link--active {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.cp-sidebar__footer {
+  border-top: 1px solid #334155;
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cp-user {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 0.35rem;
+}
+
+.cp-main {
+  flex: 1;
+  padding: 1.5rem 2rem;
+  overflow: auto;
+}
+
+.cp-page-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+.cp-muted {
+  color: #64748b;
+  margin-top: 0;
+}

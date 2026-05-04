@@ -1,38 +1,55 @@
 import React from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import { ProtectedRoute } from './components/routing/ProtectedRoute'
+import { GuestRoute } from './components/routing/GuestRoute'
+import { HomeRedirect } from './components/routing/HomeRedirect'
+import { AppLayout } from './components/Layout/AppLayout'
+import { LoginPage } from './pages/LoginPage'
+import { RegisterPage } from './pages/RegisterPage'
+import { DashboardPage } from './pages/DashboardPage'
+import { PlaceholderPage } from './pages/PlaceholderPage'
 
 export function App() {
   return (
-    <div style={styles.page}>
-      <h1 style={styles.title}>CareerPilot Local</h1>
-      <p style={styles.body}>
-        Frontend scaffold (React + TypeScript + Vite). Business logic and API integration will be added next.
-      </p>
-      <p style={styles.body}>
-        Backend scaffold endpoint:{' '}
-        <code style={styles.code}>
-          {import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/api/scaffold
-        </code>
-      </p>
-    </div>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<HomeRedirect />} />
+
+          <Route element={<GuestRoute />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route
+                path="/target-companies"
+                element={
+                  <PlaceholderPage title="Target companies" description="Manage saved employers and career page URLs." />
+                }
+              />
+              <Route
+                path="/job-leads"
+                element={<PlaceholderPage title="Job leads" description="Review crawled or saved roles before applying." />}
+              />
+              <Route
+                path="/applications"
+                element={<PlaceholderPage title="Applications" description="Track status, dates, and notes for each application." />}
+              />
+              <Route
+                path="/prep"
+                element={<PlaceholderPage title="Interview prep" description="Prep tasks tied to interview plans will show here." />}
+              />
+              <Route path="/settings" element={<PlaceholderPage title="Settings" description="Account and preferences (API pending)." />} />
+            </Route>
+          </Route>
+
+          <Route path="*" element={<HomeRedirect />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    fontFamily:
-      'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
-    padding: 32,
-    maxWidth: 800,
-    margin: '0 auto',
-    color: '#111827',
-  },
-  title: { fontSize: 28, margin: 0, marginBottom: 8 },
-  body: { fontSize: 16, lineHeight: 1.5, marginTop: 8 },
-  code: {
-    padding: '2px 6px',
-    borderRadius: 6,
-    background: '#f3f4f6',
-    border: '1px solid #e5e7eb',
-  },
-}
-

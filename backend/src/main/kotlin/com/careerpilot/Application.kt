@@ -48,6 +48,8 @@ import io.ktor.server.plugins.callid.callId
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.cors.routing.CORS
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
@@ -59,7 +61,9 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.sql.SQLException
 import java.time.LocalDate
@@ -76,9 +80,10 @@ fun Application.module() {
 }
 
 fun Application.moduleWithEnv(env: Map<String, String>) {
+    val appLog = environment.log
     val cfg = AppConfig.fromEnv(env)
-    environment.log.info("Starting {} v{} on port {}", cfg.appName, cfg.version, cfg.port)
-    environment.log.info(
+    appLog.info("Starting {} v{} on port {}", cfg.appName, cfg.version, cfg.port)
+    appLog.info(
         "DB config loaded (no connection yet): host={}, port={}, name={}, user={}",
         cfg.db.host,
         cfg.db.port,
@@ -112,8 +117,16 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
     }
 
     install(CORS) {
-        // Local dev only for now.
+        // Local dev only for now. Explicit headers/methods help browsers send `Authorization` on cross-origin requests.
         anyHost()
+        allowHeader(HttpHeaders.Authorization)
+        allowHeader(HttpHeaders.ContentType)
+        allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Get)
+        allowMethod(HttpMethod.Post)
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Patch)
+        allowMethod(HttpMethod.Delete)
         allowNonSimpleContentTypes = true
     }
 
@@ -133,6 +146,30 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                 status = HttpStatusCode.BadRequest,
                 message = ApiResponse.fail("bad_request", cause.message ?: "Bad request"),
             )
+        }
+        exception<SerializationException> { call, cause ->
+            call.respond(
+                HttpStatusCode.BadRequest,
+                ApiResponse.fail("bad_json", cause.message ?: "Invalid request body"),
+            )
+        }
+        exception<SQLException> { call, cause ->
+            appLog.error("SQL error", cause)
+            call.respond(
+                HttpStatusCode.InternalServerError,
+                ApiResponse.fail("db_error", cause.message ?: "Database error"),
+            )
+        }
+        exception<Throwable> { call, cause ->
+            if (cause is CancellationException) throw cause
+            appLog.error("Unhandled exception", cause)
+            val msg =
+                buildString {
+                    append(cause.javaClass.simpleName)
+                    val m = cause.message
+                    if (!m.isNullOrBlank()) append(": ").append(m.take(400))
+                }.take(500)
+            call.respond(HttpStatusCode.InternalServerError, ApiResponse.fail("internal_error", msg))
         }
     }
 

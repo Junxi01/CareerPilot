@@ -70,6 +70,13 @@ The backend already includes a minimal, working baseline:
 
 See `backend/README.md` for run commands and examples.
 
+### Frontend (current)
+
+- **React + TypeScript + Vite**, **React Router 6** (`/login`, `/register`, sidebar layout, placeholder sections).
+- API base URL: **`VITE_API_BASE_URL`** (see `frontend/.env.example`; default `http://localhost:8080`).
+- **JWT** stored in **`localStorage`** under `careerpilot_auth_token`. Shared DTO-oriented types live in `frontend/src/types/` (aligned with Kotlin `ApiResponse` / domain DTOs).
+- Run: `cd frontend && npm install && npm run dev` (or use repo `./scripts/local-up.sh`).
+
 ### Git hygiene: keep commits single-author
 
 If you don't want GitHub to show AI/tools (e.g. "Cursor") as contributors, install the repo-local git hook once:
