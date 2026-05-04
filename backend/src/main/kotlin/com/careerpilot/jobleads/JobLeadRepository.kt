@@ -4,6 +4,7 @@ import com.careerpilot.db.DatabaseModule
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import java.sql.Connection
 import java.sql.Statement
 import java.sql.Timestamp
 import java.time.Instant
@@ -64,24 +65,25 @@ class JobLeadRepository(private val db: DatabaseModule) {
         }
     }
 
-    fun findById(userId: Long, id: Long): JobLeadRecord? {
-        db.openConnection().use { conn ->
-            conn.prepareStatement(
-                """
-                SELECT jl.id, jl.company_id, tc.name AS company_name, jl.title, jl.url, jl.location, jl.raw_description,
-                       jl.matched_keywords_json, jl.match_score, jl.discovered_at, jl.saved_to_applications
-                FROM job_leads jl
-                JOIN target_companies tc ON tc.id = jl.company_id
-                WHERE tc.user_id = ? AND jl.id = ?
-                LIMIT 1
-                """.trimIndent(),
-            ).use { ps ->
-                ps.setLong(1, userId)
-                ps.setLong(2, id)
-                ps.executeQuery().use { rs ->
-                    if (!rs.next()) return null
-                    return readRecord(rs)
-                }
+    fun findById(userId: Long, id: Long): JobLeadRecord? =
+        db.openConnection().use { conn -> findById(conn, userId, id) }
+
+    fun findById(conn: Connection, userId: Long, id: Long): JobLeadRecord? {
+        conn.prepareStatement(
+            """
+            SELECT jl.id, jl.company_id, tc.name AS company_name, jl.title, jl.url, jl.location, jl.raw_description,
+                   jl.matched_keywords_json, jl.match_score, jl.discovered_at, jl.saved_to_applications
+            FROM job_leads jl
+            JOIN target_companies tc ON tc.id = jl.company_id
+            WHERE tc.user_id = ? AND jl.id = ?
+            LIMIT 1
+            """.trimIndent(),
+        ).use { ps ->
+            ps.setLong(1, userId)
+            ps.setLong(2, id)
+            ps.executeQuery().use { rs ->
+                if (!rs.next()) return null
+                return readRecord(rs)
             }
         }
     }
@@ -229,6 +231,25 @@ class JobLeadRepository(private val db: DatabaseModule) {
                 ps.setLong(2, userId)
                 return ps.executeUpdate() > 0
             }
+        }
+    }
+
+    /** Marks the job lead as saved to applications (used when converting to an application). */
+    fun markSavedToApplications(userId: Long, jobLeadId: Long): Boolean =
+        db.openConnection().use { conn -> markSavedToApplications(conn, userId, jobLeadId) }
+
+    fun markSavedToApplications(conn: Connection, userId: Long, jobLeadId: Long): Boolean {
+        conn.prepareStatement(
+            """
+            UPDATE job_leads jl
+            SET saved_to_applications = 1
+            WHERE jl.id = ?
+              AND jl.company_id IN (SELECT id FROM target_companies WHERE user_id = ?)
+            """.trimIndent(),
+        ).use { ps ->
+            ps.setLong(1, jobLeadId)
+            ps.setLong(2, userId)
+            return ps.executeUpdate() > 0
         }
     }
 

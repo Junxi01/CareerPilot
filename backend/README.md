@@ -81,6 +81,23 @@ Notes:
 - Duplicate prevention: `job_url` is unique **per user** (enforced at the API/repository level).
 - `matched_keywords` is stored as JSON (MySQL `JSON` column; H2 tests use `TEXT` with the same JSON encoding).
 
+### Applications API (Day 9)
+
+All endpoints require `Authorization: Bearer <token>`.
+
+- `GET /api/applications` (filters: `status`, `company_id`, `keyword`)
+- `POST /api/applications` (provide **either** `company_id` **or** `company_name`, not both)
+- `GET /api/applications/{id}`
+- `PATCH /api/applications/{id}`
+- `DELETE /api/applications/{id}` (**hard delete**)
+- `POST /api/job-leads/{id}/save-as-application` — creates an application from a job lead, sets `saved_to_applications=true` on that lead, and uses status `SAVED`.
+
+Statuses (API / JSON): `SAVED`, `APPLIED`, `ONLINE_ASSESSMENT`, `INTERVIEW`, `OFFER`, `REJECTED`, `GHOSTED`, `ARCHIVED`. Matching is **case-insensitive** in JSON/query strings (e.g. `applied`, `online-assessment`).
+
+Duplicate prevention: `job_url` is unique **per user** for applications. `applied_date` / `follow_up_date` in JSON map to `applied_at` / `next_follow_up_date` in MySQL (omit or null → stored as SQL `NULL`).
+
+`POST .../save-as-application` runs insert + lead flag update in a **transaction**. Calling it again returns **200 OK** with the existing application (idempotent) when the lead is already saved.
+
 ### Database connectivity (Day 5)
 
 This backend uses:

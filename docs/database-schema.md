@@ -60,8 +60,11 @@ Tracks user applications, optionally linked to a `job_leads` record.
   - `user_id` → `users.id`
   - `company_id` → `target_companies.id`
   - `job_lead_id` → `job_leads.id` (nullable)
-  - `status` (**required index**)
-  - `applied_at`, `next_follow_up_date`, `notes`
+  - `role_title`, `job_url` (per-user de-dupe on `job_url` via `user_id` + `job_url` unique index)
+  - `status` (string enum, e.g. `SAVED`, `APPLIED`, …) (**required index**)
+  - `tech_stack_json` (JSON array of strings)
+  - `salary_range` (freeform string)
+  - `applied_at`, `next_follow_up_date` (API: `applied_date` / `follow_up_date`), `notes`
 - **Indexes**:
   - `status` (**required**)
   - `user_id`, `company_id`, `job_lead_id`

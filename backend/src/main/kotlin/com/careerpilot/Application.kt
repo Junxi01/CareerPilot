@@ -16,6 +16,14 @@ import com.careerpilot.jobleads.CreateJobLeadRequest
 import com.careerpilot.jobleads.PatchJobLeadRequest
 import com.careerpilot.jobleads.InsertResult
 import com.careerpilot.jobleads.UpdateResult
+import com.careerpilot.applications.ApplicationRepository
+import com.careerpilot.applications.ApplicationValidation
+import com.careerpilot.applications.CreateApplicationRequest
+import com.careerpilot.applications.PatchApplicationRequest
+import com.careerpilot.applications.InsertApplicationResult
+import com.careerpilot.applications.UpdateApplicationResult
+import com.careerpilot.applications.SaveFromLeadResult
+import com.careerpilot.applications.parseApplicationStatus
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
@@ -44,6 +52,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.sql.SQLException
+import java.time.LocalDate
 import org.slf4j.event.Level
 import java.util.UUID
 
@@ -71,6 +80,7 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
     val userRepo = UserRepository(db)
     val targetCompanies = TargetCompanyRepository(db)
     val jobLeads = JobLeadRepository(db)
+    val applications = ApplicationRepository(db, jobLeads)
 
     val authCfg = AuthConfig.fromEnv(env)
     val jwt = JwtService(authCfg)
@@ -259,6 +269,121 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                 }
             }
 
+            route("/api/applications") {
+                get {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val status =
+                        call.request.queryParameters["status"]?.trim()?.takeIf { it.isNotBlank() }?.let { raw ->
+                            parseApplicationStatus(raw)
+                                ?: return@get call.respond(
+                                    HttpStatusCode.BadRequest,
+                                    ApiResponse.fail("bad_request", "Invalid status"),
+                                )
+                        }
+                    val companyId = call.request.queryParameters["company_id"]?.toLongOrNull()
+                    val keyword = call.request.queryParameters["keyword"]?.trim()?.takeIf { it.isNotBlank() }
+                    val items =
+                        applications.listByUser(userId, status, companyId, keyword).map { it.toDto() }
+                    call.respond(ApiResponse.ok(items))
+                }
+
+                post {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val req = call.receive<CreateApplicationRequest>()
+                    val norm = ApplicationValidation.normalizeCreate(req)
+                    val failure = ApplicationValidation.validateCreate(norm)
+                    if (failure != null) {
+                        return@post call.respond(
+                            HttpStatusCode.BadRequest,
+                            ApiResponse.fail(failure.code, failure.message),
+                        )
+                    }
+                    val resolved =
+                        applications.resolveCompanyForCreate(userId, norm.company_id, norm.company_name)
+                            ?: return@post call.respond(
+                                HttpStatusCode.NotFound,
+                                ApiResponse.fail("company_not_found", "Target company not found"),
+                            )
+                    val applied = norm.applied_date?.let { LocalDate.parse(it) }
+                    val follow = norm.follow_up_date?.let { LocalDate.parse(it) }
+                    when (
+                        val res =
+                            applications.insert(
+                                userId = userId,
+                                companyId = resolved.id,
+                                companyName = resolved.name,
+                                jobLeadId = null,
+                                roleTitle = norm.role_title,
+                                jobUrl = norm.job_url,
+                                status = norm.status,
+                                techStack = norm.tech_stack,
+                                salaryRange = norm.salary_range,
+                                appliedDate = applied,
+                                followUpDate = follow,
+                                notes = norm.notes,
+                            )
+                    ) {
+                        is InsertApplicationResult.Created ->
+                            call.respond(HttpStatusCode.Created, ApiResponse.ok(res.record.toDto()))
+                        InsertApplicationResult.DuplicateJobUrl ->
+                            call.respond(
+                                HttpStatusCode.Conflict,
+                                ApiResponse.fail("duplicate_job_url", "Application already exists for this job URL"),
+                            )
+                    }
+                }
+
+                get("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val item = applications.findById(userId, id)
+                        ?: return@get call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(item.toDto()))
+                }
+
+                patch("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@patch call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val req = call.receive<PatchApplicationRequest>()
+                    val norm = ApplicationValidation.normalizePatch(req)
+                    val failure = ApplicationValidation.validateNormalizedPatch(norm)
+                    if (failure != null) {
+                        return@patch call.respond(
+                            HttpStatusCode.BadRequest,
+                            ApiResponse.fail(failure.code, failure.message),
+                        )
+                    }
+                    when (val res = applications.update(userId, id, norm)) {
+                        is UpdateApplicationResult.Updated -> call.respond(ApiResponse.ok(res.record.toDto()))
+                        UpdateApplicationResult.NotFound ->
+                            call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                        UpdateApplicationResult.DuplicateJobUrl ->
+                            call.respond(
+                                HttpStatusCode.Conflict,
+                                ApiResponse.fail("duplicate_job_url", "Application already exists for this job URL"),
+                            )
+                        UpdateApplicationResult.CompanyNotFound ->
+                            call.respond(HttpStatusCode.NotFound, ApiResponse.fail("company_not_found", "Target company not found"))
+                    }
+                }
+
+                delete("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val ok = applications.delete(userId, id)
+                    if (!ok) return@delete call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(Unit))
+                }
+            }
+
             route("/api/job-leads") {
                 get {
                     val principal = call.principal<JWTPrincipal>()!!
@@ -320,6 +445,26 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                             call.respond(HttpStatusCode.NotFound, ApiResponse.fail("company_not_found", "Target company not found"))
                         InsertResult.DuplicateJobUrl ->
                             call.respond(HttpStatusCode.Conflict, ApiResponse.fail("duplicate_job_url", "job_url already exists"))
+                    }
+                }
+
+                post("{id}/save-as-application") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val jobLeadId = call.parameters["id"]?.toLongOrNull()
+                        ?: return@post call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    when (val res = applications.saveFromJobLead(userId, jobLeadId)) {
+                        is SaveFromLeadResult.Created ->
+                            call.respond(HttpStatusCode.Created, ApiResponse.ok(res.record.toDto()))
+                        is SaveFromLeadResult.AlreadySaved ->
+                            call.respond(HttpStatusCode.OK, ApiResponse.ok(res.record.toDto()))
+                        SaveFromLeadResult.NotFound ->
+                            call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                        SaveFromLeadResult.DuplicateJobUrl ->
+                            call.respond(
+                                HttpStatusCode.Conflict,
+                                ApiResponse.fail("duplicate_job_url", "Application already exists for this job URL"),
+                            )
                     }
                 }
 

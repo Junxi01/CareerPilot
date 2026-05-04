@@ -19,6 +19,24 @@ class DatabaseModule(private val cfg: DbConfig) {
         return ds.connection
     }
 
+    /** Runs work on a single connection with commit/rollback (used for multi-step writes). */
+    fun <T> transaction(block: (Connection) -> T): T {
+        openConnection().use { conn ->
+            val prevAutoCommit = conn.autoCommit
+            conn.autoCommit = false
+            try {
+                val result = block(conn)
+                conn.commit()
+                return result
+            } catch (t: Throwable) {
+                conn.rollback()
+                throw t
+            } finally {
+                conn.autoCommit = prevAutoCommit
+            }
+        }
+    }
+
     fun ping(): DbPingResult {
         return try {
             openConnection().use { conn ->
