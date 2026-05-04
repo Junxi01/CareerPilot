@@ -89,7 +89,7 @@ All endpoints require `Authorization: Bearer <token>`.
 - `POST /api/applications` (provide **either** `company_id` **or** `company_name`, not both)
 - `GET /api/applications/{id}`
 - `PATCH /api/applications/{id}`
-- `DELETE /api/applications/{id}` (**hard delete**)
+- `DELETE /api/applications/{id}` (**hard delete** — removes the application row; MySQL **ON DELETE CASCADE** removes dependent rows: **interviews**, **reminders** linked to that application, **ai_interview_plans** and their **prep_tasks**; `job_lead_id` on the application is set **NULL** if the lead still exists)
 - `POST /api/job-leads/{id}/save-as-application` — creates an application from a job lead, sets `saved_to_applications=true` on that lead, and uses status `SAVED`.
 
 Statuses (API / JSON): `SAVED`, `APPLIED`, `ONLINE_ASSESSMENT`, `INTERVIEW`, `OFFER`, `REJECTED`, `GHOSTED`, `ARCHIVED`. Matching is **case-insensitive** in JSON/query strings (e.g. `applied`, `online-assessment`).
@@ -97,6 +97,29 @@ Statuses (API / JSON): `SAVED`, `APPLIED`, `ONLINE_ASSESSMENT`, `INTERVIEW`, `OF
 Duplicate prevention: `job_url` is unique **per user** for applications. `applied_date` / `follow_up_date` in JSON map to `applied_at` / `next_follow_up_date` in MySQL (omit or null → stored as SQL `NULL`).
 
 `POST .../save-as-application` runs insert + lead flag update in a **transaction**. Calling it again returns **200 OK** with the existing application (idempotent) when the lead is already saved.
+
+### Interviews & reminders (Day 10)
+
+All endpoints require `Authorization: Bearer <token>`. List and mutation operations are **scoped to the authenticated user** (interviews are visible only if they belong to an application owned by the user).
+
+**Interviews**
+
+- `GET /api/interviews` — all interviews for the user’s applications (`scheduled_at` is ISO-8601 instant string or omitted/null).
+- `POST /api/applications/{id}/interviews` — body: `round_name`, `scheduled_at` (ISO-8601), `status`, `notes` (404 if the application is not yours).
+- `PATCH /api/interviews/{id}` — partial update (same fields as create).
+- `DELETE /api/interviews/{id}`
+
+**Reminders**
+
+- `GET /api/reminders` — all reminders for the user.
+- `GET /api/reminders/today` — reminders whose `due_at` falls on the **current calendar day on the server** (JVM default timezone, typically the host OS — **not** per-user timezone). The window is midnight-to-midnight in that zone.
+- `POST /api/applications/{id}/reminders` — body: `type` (`FOLLOW_UP` \| `INTERVIEW_PREP` \| `CUSTOM`), `due_at` (ISO-8601 instant, e.g. `2026-05-03T15:00:00Z`), `message` (404 if the application is not yours).
+- `PATCH /api/reminders/{id}/complete` — sets `done` on the existing row (**does not delete** the reminder); idempotent if already done.
+- `DELETE /api/reminders/{id}` — removes the row (only owner; otherwise 404).
+
+**Timezone note (current limitation)**  
+
+There is **no per-user timezone** in the API yet. `/today` and “what counts as today” follow **server local time**. Clients should read/write instants as **ISO-8601** strings from/to JSON so parsing stays consistent across frontend and backend.
 
 ### Database connectivity (Day 5)
 

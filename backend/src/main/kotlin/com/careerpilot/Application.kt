@@ -24,6 +24,13 @@ import com.careerpilot.applications.InsertApplicationResult
 import com.careerpilot.applications.UpdateApplicationResult
 import com.careerpilot.applications.SaveFromLeadResult
 import com.careerpilot.applications.parseApplicationStatus
+import com.careerpilot.interviews.CreateInterviewRequest
+import com.careerpilot.interviews.InterviewRepository
+import com.careerpilot.interviews.InterviewValidation
+import com.careerpilot.interviews.PatchInterviewRequest
+import com.careerpilot.reminders.CreateReminderRequest
+import com.careerpilot.reminders.ReminderRepository
+import com.careerpilot.reminders.ReminderValidation
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
@@ -81,6 +88,8 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
     val targetCompanies = TargetCompanyRepository(db)
     val jobLeads = JobLeadRepository(db)
     val applications = ApplicationRepository(db, jobLeads)
+    val interviews = InterviewRepository(db, applications)
+    val reminders = ReminderRepository(db, applications)
 
     val authCfg = AuthConfig.fromEnv(env)
     val jwt = JwtService(authCfg)
@@ -335,6 +344,55 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                     }
                 }
 
+                post("{id}/interviews") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val appId = call.parameters["id"]?.toLongOrNull()
+                        ?: return@post call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val req = call.receive<CreateInterviewRequest>()
+                    val norm = InterviewValidation.normalizeCreate(req)
+                    val failure = InterviewValidation.validateCreate(norm)
+                    if (failure != null) {
+                        return@post call.respond(HttpStatusCode.BadRequest, ApiResponse.fail(failure.code, failure.message))
+                    }
+                    val scheduled = norm.scheduled_at?.let { InterviewValidation.parseInstant(it) }
+                    val created =
+                        interviews.insert(
+                            userId = userId,
+                            applicationId = appId,
+                            roundName = norm.round_name,
+                            scheduledAt = scheduled,
+                            status = norm.status,
+                            notes = norm.notes,
+                        )
+                            ?: return@post call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(HttpStatusCode.Created, ApiResponse.ok(created.toDto()))
+                }
+
+                post("{id}/reminders") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val appId = call.parameters["id"]?.toLongOrNull()
+                        ?: return@post call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val req = call.receive<CreateReminderRequest>()
+                    val norm = ReminderValidation.normalizeCreate(req)
+                    val failure = ReminderValidation.validateCreate(norm)
+                    if (failure != null) {
+                        return@post call.respond(HttpStatusCode.BadRequest, ApiResponse.fail(failure.code, failure.message))
+                    }
+                    val dueAt = ReminderValidation.parseInstant(norm.due_at)!!
+                    val created =
+                        reminders.insertForApplication(
+                            userId = userId,
+                            applicationId = appId,
+                            type = norm.type,
+                            dueAt = dueAt,
+                            message = norm.message,
+                        )
+                            ?: return@post call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(HttpStatusCode.Created, ApiResponse.ok(created.toDto()))
+                }
+
                 get("/{id}") {
                     val principal = call.principal<JWTPrincipal>()!!
                     val userId = principal.payload.subject!!.toLong()
@@ -379,6 +437,77 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                     val id = call.parameters["id"]?.toLongOrNull()
                         ?: return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
                     val ok = applications.delete(userId, id)
+                    if (!ok) return@delete call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(Unit))
+                }
+            }
+
+            route("/api/interviews") {
+                get {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val items = interviews.listForUser(userId).map { it.toDto() }
+                    call.respond(ApiResponse.ok(items))
+                }
+
+                patch("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@patch call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val req = call.receive<PatchInterviewRequest>()
+                    val patch = InterviewValidation.normalizePatch(req)
+                    val failure = InterviewValidation.validatePatch(patch)
+                    if (failure != null) {
+                        return@patch call.respond(HttpStatusCode.BadRequest, ApiResponse.fail(failure.code, failure.message))
+                    }
+                    val updated = interviews.update(userId, id, patch)
+                        ?: return@patch call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(updated.toDto()))
+                }
+
+                delete("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val ok = interviews.delete(userId, id)
+                    if (!ok) return@delete call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(Unit))
+                }
+            }
+
+            route("/api/reminders") {
+                get {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val items = reminders.listForUser(userId).map { it.toDto() }
+                    call.respond(ApiResponse.ok(items))
+                }
+
+                get("today") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val items = reminders.listDueTodayServerLocal(userId).map { it.toDto() }
+                    call.respond(ApiResponse.ok(items))
+                }
+
+                patch("{id}/complete") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@patch call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val updated = reminders.setDone(userId, id)
+                        ?: return@patch call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(updated.toDto()))
+                }
+
+                delete("/{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val ok = reminders.delete(userId, id)
                     if (!ok) return@delete call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
                     call.respond(ApiResponse.ok(Unit))
                 }

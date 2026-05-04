@@ -147,16 +147,22 @@ CREATE TABLE IF NOT EXISTS prep_tasks (
 CREATE TABLE IF NOT EXISTS reminders (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NOT NULL,
-  due_date DATE NOT NULL,
+  application_id BIGINT UNSIGNED NULL,
+  reminder_type VARCHAR(32) NOT NULL DEFAULT 'CUSTOM',
+  due_at TIMESTAMP NOT NULL,
   message VARCHAR(512) NOT NULL,
   done TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY ix_reminders_user_id (user_id),
-  KEY ix_reminders_due_date (due_date),
+  KEY ix_reminders_due_at (due_at),
+  KEY ix_reminders_application_id (application_id),
   CONSTRAINT fk_reminders_user
     FOREIGN KEY (user_id) REFERENCES users (id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_reminders_application
+    FOREIGN KEY (application_id) REFERENCES applications (id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

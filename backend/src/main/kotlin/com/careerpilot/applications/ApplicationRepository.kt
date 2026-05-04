@@ -66,6 +66,19 @@ class ApplicationRepository(
         }
     }
 
+    /** Cheap ownership check (no join to companies). */
+    fun isOwnedByUser(userId: Long, applicationId: Long): Boolean {
+        db.openConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT 1 FROM applications WHERE id = ? AND user_id = ? LIMIT 1",
+            ).use { ps ->
+                ps.setLong(1, applicationId)
+                ps.setLong(2, userId)
+                ps.executeQuery().use { rs -> return rs.next() }
+            }
+        }
+    }
+
     fun findById(userId: Long, id: Long): ApplicationRecord? {
         db.openConnection().use { conn ->
             conn.prepareStatement(

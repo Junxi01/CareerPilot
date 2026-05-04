@@ -9,6 +9,8 @@ This document explains the baseline tables in `database/schema.sql`.
 - **Foreign keys**: enforced with `ON DELETE` behavior chosen per relationship
 - **JSON**: keywords/locations stored as `JSON` when practical for structured data
 
+**Deleting an `applications` row** (API `DELETE /api/applications/{id}`) **hard-deletes** that application. Child rows with `ON DELETE CASCADE` are removed with it, including **`interviews`**, **`reminders`** with that `application_id`, and **`ai_interview_plans`** (and their **`prep_tasks`** through the plan). The application’s `job_lead_id` uses `ON DELETE SET NULL` on the lead side when a lead is deleted, not when the application is deleted.
+
 ### Tables
 
 #### 1) `users`
@@ -103,15 +105,17 @@ Concrete tasks derived from an AI plan.
 
 #### 8) `reminders`
 
-User reminders (follow-ups, prep tasks, etc.).
+Per-user reminders, optionally tied to an application.
 
 - **Columns**:
   - `user_id` → `users.id`
-  - `due_date` (**required index**)
-  - `message`, `done`
+  - optional `application_id` → `applications.id`
+  - `reminder_type` — `FOLLOW_UP`, `INTERVIEW_PREP`, or `CUSTOM`
+  - `due_at` — absolute timestamp (**ISO-8601 instant** in the API, e.g. `2026-05-03T12:00:00Z`; stored as MySQL `TIMESTAMP`)
+  - `message`, `done` (completing via API sets `done` only; **row is not removed** until explicit delete)
 - **Indexes**:
-  - `due_date` (**required**)
-  - `user_id`
+  - `due_at` (**required**)
+  - `user_id`, `application_id`
 
 #### 9) `app_settings`
 
