@@ -314,8 +314,19 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                     val userId = principal.payload.subject!!.toLong()
                     val id = call.parameters["id"]?.toLongOrNull()
                         ?: return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
-                    val ok = targetCompanies.softDelete(userId, id)
+                    val ok = targetCompanies.deleteByUser(userId, id)
                     if (!ok) return@delete call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(Unit))
+                }
+
+                /** Same as DELETE `/{id}`; POST avoids clients/network stacks that mishandle DELETE. */
+                post("/{id}/delete") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@post call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val ok = targetCompanies.deleteByUser(userId, id)
+                    if (!ok) return@post call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
                     call.respond(ApiResponse.ok(Unit))
                 }
             }

@@ -64,7 +64,7 @@ All endpoints require `Authorization: Bearer <token>` and are scoped to the auth
 
 Delete strategy:
 
-- `DELETE` is a **soft delete**: it sets `active=false` instead of removing the row.
+- Permanent remove the row: **`POST /api/target-companies/{id}/delete`** (JSON `{}`) or **`DELETE /api/target-companies/{id}`**. Related rows follow FK **`ON DELETE CASCADE`** (varies per table). Prefer **`PATCH`** `{ "active": false }` to deactivate without deleting.
 
 ### Job leads API (Day 8)
 

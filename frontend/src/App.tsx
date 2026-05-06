@@ -8,6 +8,8 @@ import { AppLayout } from './components/Layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { TargetCompaniesPage } from './pages/TargetCompaniesPage'
+import { JobLeadsPage } from './pages/JobLeadsPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 
 export function App() {
@@ -25,16 +27,8 @@ export function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route
-                path="/target-companies"
-                element={
-                  <PlaceholderPage title="Target companies" description="Manage saved employers and career page URLs." />
-                }
-              />
-              <Route
-                path="/job-leads"
-                element={<PlaceholderPage title="Job leads" description="Review crawled or saved roles before applying." />}
-              />
+              <Route path="/target-companies" element={<TargetCompaniesPage />} />
+              <Route path="/job-leads" element={<JobLeadsPage />} />
               <Route
                 path="/applications"
                 element={<PlaceholderPage title="Applications" description="Track status, dates, and notes for each application." />}

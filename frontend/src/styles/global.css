@@ -97,6 +97,15 @@ body {
   font: inherit;
 }
 
+.cp-select {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+
 .cp-btn {
   cursor: pointer;
   border-radius: 6px;
@@ -193,4 +202,281 @@ body {
   font-size: 1.35rem;
   font-weight: 600;
   margin-top: 0.15rem;
+}
+
+/* --- Day 14: Job Leads page helpers --- */
+
+.cp-jobleads-filters {
+  display: grid;
+  grid-template-columns: 220px 1fr 180px 180px;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+@media (max-width: 980px) {
+  .cp-jobleads-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cp-jobleads-split {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .cp-jobleads-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cp-jl-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.cp-jl-item:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.cp-jl-item--active {
+  border-color: #2563eb;
+}
+
+.cp-jl-item__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cp-jl-item__title {
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-jl-item__meta {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.cp-jl-detail__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.cp-jl-detail__meta {
+  margin-top: 0.35rem;
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+.cp-jl-detail__meta a {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.cp-jl-detail__meta a:hover {
+  text-decoration: underline;
+}
+
+.cp-jl-detail__block {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.cp-jl-detail__label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
+.cp-jl-detail__preview {
+  white-space: pre-wrap;
+  color: #0f172a;
+}
+
+.cp-jl-detail__actions {
+  margin-top: 1rem;
+}
+
+/* --- Day 13: Target Companies page helpers --- */
+
+.cp-help {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+
+.cp-error {
+  font-size: 0.82rem;
+  color: #b91c1c;
+  margin-top: 0.25rem;
+}
+
+.cp-field textarea {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
+  resize: vertical;
+}
+
+.cp-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.cp-split {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .cp-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cp-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.cp-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.cp-card__title {
+  font-weight: 600;
+}
+
+.cp-btn--subtle {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.cp-btn--subtle:hover {
+  background: #e2e8f0;
+}
+
+.cp-btn--danger {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.cp-btn--danger:hover {
+  background: #fecaca;
+}
+
+.cp-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cp-row {
+  display: flex;
+  gap: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem;
+}
+
+.cp-row--inactive {
+  opacity: 0.7;
+}
+
+.cp-row__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.cp-row__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.cp-row__meta {
+  font-size: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.cp-row__meta a {
+  color: #1d4ed8;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.cp-row__meta a:hover {
+  text-decoration: underline;
+}
+
+.cp-row__tags {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.cp-row__notes {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: #0f172a;
+  white-space: pre-wrap;
+}
+
+.cp-row__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.cp-badge {
+  font-size: 0.72rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-weight: 600;
+}
+
+.cp-badge--on {
+  border-color: #86efac;
+  color: #166534;
+  background: #dcfce7;
 }

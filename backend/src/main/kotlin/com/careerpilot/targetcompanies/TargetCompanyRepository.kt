@@ -16,8 +16,8 @@ class TargetCompanyRepository(private val db: DatabaseModule) {
                 SELECT id, user_id, name, careers_page_url, active,
                        locations_json, tech_keywords_json, notes
                 FROM target_companies
-                WHERE user_id = ? AND active = 1
-                ORDER BY id DESC
+                WHERE user_id = ?
+                ORDER BY active DESC, id DESC
                 """.trimIndent(),
             ).use { ps ->
                 ps.setLong(1, userId)
@@ -161,14 +161,11 @@ class TargetCompanyRepository(private val db: DatabaseModule) {
         return findById(userId, id)
     }
 
-    /**
-     * Soft delete strategy: mark company inactive (active=false).
-     * Keeping the record avoids accidental data loss and preserves referential integrity for related data.
-     */
-    fun softDelete(userId: Long, id: Long): Boolean {
+    /** Permanently remove the row. Related job leads / applications CASCADE per schema. Use PATCH `active:false` to deactivate without deleting. */
+    fun deleteByUser(userId: Long, id: Long): Boolean {
         db.openConnection().use { conn ->
             conn.prepareStatement(
-                "UPDATE target_companies SET active = 0 WHERE user_id = ? AND id = ?",
+                "DELETE FROM target_companies WHERE user_id = ? AND id = ?",
             ).use { ps ->
                 ps.setLong(1, userId)
                 ps.setLong(2, id)

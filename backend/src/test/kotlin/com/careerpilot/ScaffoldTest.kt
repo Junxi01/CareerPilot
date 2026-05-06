@@ -16,6 +16,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ScaffoldTest {
@@ -282,9 +283,11 @@ class ScaffoldTest {
         assertTrue(patchedBody.contains("\"keywords\":[\"kotlin\",\"mysql\"]"))
         assertTrue(patchedBody.contains("\"locations\":[\"SF\",\"Remote\"]"))
 
-        // DELETE is soft delete (sets active=false)
-        val delA = client.delete("/api/target-companies/$idA") {
+        // Permanent remove via POST `{id}/delete` (preferred for browser fetch); DELETE `{id}` is equivalent.
+        val delA = client.post("/api/target-companies/$idA/delete") {
             header(HttpHeaders.Authorization, "Bearer $tokenA")
+            contentType(ContentType.Application.Json)
+            setBody("{}")
         }
         assertEquals(HttpStatusCode.OK, delA.status)
 
@@ -292,7 +295,13 @@ class ScaffoldTest {
             header(HttpHeaders.Authorization, "Bearer $tokenA")
         }
         assertEquals(HttpStatusCode.OK, listAfterDelete.status)
-        assertTrue(!listAfterDelete.bodyAsText().contains("\"id\":$idA"))
+        val bodyAfterDelete = listAfterDelete.bodyAsText()
+        assertFalse(bodyAfterDelete.contains("\"id\":$idA"))
+
+        val getDeleted = client.get("/api/target-companies/$idA") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.NotFound, getDeleted.status)
     }
 
     @Test
@@ -409,7 +418,7 @@ class ScaffoldTest {
                 """
                 {
                   "company_id": $companyAId,
-                  "role_title":"Backend Engineer",
+                  "role_title":"Product Manager",
                   "job_url":"https://jobs.example.com/1",
                   "location":"Remote",
                   "matched_keywords":["kotlin","ktor"],
@@ -425,6 +434,57 @@ class ScaffoldTest {
         val leadId =
             Regex("\"id\"\\s*:\\s*(\\d+)").find(body1)?.groupValues?.get(1)?.toLong()
                 ?: error("Missing id: $body1")
+
+        fun parseLeadId(respBody: String): Long =
+            Regex("\"id\"\\s*:\\s*(\\d+)").find(respBody)?.groupValues?.get(1)?.toLong()
+                ?: error("Missing id in: $respBody")
+
+        val createWwOnly = client.post("/api/job-leads") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "company_id": $companyAId,
+                  "role_title":"Marketing",
+                  "job_url":"https://jobs.example.com/ww-slot",
+                  "matched_keywords":["ww"],
+                  "saved_to_applications": false
+                }
+                """.trimIndent(),
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createWwOnly.status)
+        val leadWwId = parseLeadId(createWwOnly.bodyAsText())
+
+        val createBackendOnly = client.post("/api/job-leads") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "company_id": $companyAId,
+                  "role_title":"Analyst",
+                  "job_url":"https://jobs.example.com/backend-slot",
+                  "matched_keywords":["backend"],
+                  "saved_to_applications": false
+                }
+                """.trimIndent(),
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createBackendOnly.status)
+        val leadBackendId = parseLeadId(createBackendOnly.bodyAsText())
+
+        // Company + keyword: only the backend-keyword row survives
+        val listCompanyAndKw =
+            client.get("/api/job-leads?company_id=$companyAId&keyword=backend") {
+                header(HttpHeaders.Authorization, "Bearer $tokenA")
+            }
+        assertEquals(HttpStatusCode.OK, listCompanyAndKw.status)
+        val comboBody = listCompanyAndKw.bodyAsText()
+        assertTrue(comboBody.contains("\"id\":$leadBackendId"))
+        assertFalse(comboBody.contains("\"id\":$leadWwId"))
+        assertFalse(comboBody.contains("\"id\":$leadId"))
 
         // B cannot read A lead
         val getAsB = client.get("/api/job-leads/$leadId") { header(HttpHeaders.Authorization, "Bearer $tokenB") }

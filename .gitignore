@@ -1,6 +1,7 @@
 backend/build/
 backend/.gradle/
 backend/.gradle-user-home/
+backend/.gradle-local/
 frontend/node_modules/
 frontend/dist/
 frontend/.env.local

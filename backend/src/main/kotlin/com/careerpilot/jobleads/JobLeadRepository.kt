@@ -12,6 +12,17 @@ import java.time.Instant
 class JobLeadRepository(private val db: DatabaseModule) {
     private val json = Json
 
+    /** Drops LIKE metacharacters so user input cannot widen matches. */
+    private fun sanitizedLikeSubstring(keywordRaw: String): String? {
+        val s = keywordRaw.trim()
+        if (s.isEmpty()) return null
+        val sb = StringBuilder()
+        for (ch in s) {
+            if (ch != '\\' && ch != '%' && ch != '_') sb.append(ch)
+        }
+        return sb.toString().takeIf { it.isNotEmpty() }
+    }
+
     fun listByUser(
         userId: Long,
         companyId: Long? = null,
@@ -35,11 +46,20 @@ class JobLeadRepository(private val db: DatabaseModule) {
             where += "jl.saved_to_applications = ?"
             binders += { ps, idx -> ps.setBoolean(idx, savedToApplications); idx + 1 }
         }
+        // Substring search (matched_keywords JSON blob, JD, title, URL). Scoped with company/min/saved via AND.
         if (!keyword.isNullOrBlank()) {
-            // DB-agnostic containment check (works for MySQL JSON and H2 TEXT test schema)
-            where += "jl.matched_keywords_json LIKE ?"
-            val needle = "%\"${keyword.trim()}\"%"
-            binders += { ps, idx -> ps.setString(idx, needle); idx + 1 }
+            val sub = sanitizedLikeSubstring(keyword)
+            if (!sub.isNullOrEmpty()) {
+                val pattern = "%$sub%"
+                where +=
+                    "(" +
+                        "jl.title LIKE ? OR jl.url LIKE ? OR COALESCE(jl.raw_description,'') LIKE ? OR " +
+                        "COALESCE(jl.matched_keywords_json,'') LIKE ?" +
+                        ")"
+                repeat(4) {
+                    binders += { ps, idx -> ps.setString(idx, pattern); idx + 1 }
+                }
+            }
         }
 
         val sql =
