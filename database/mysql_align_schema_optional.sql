@@ -52,4 +52,18 @@ CALL cp_add_column_if_missing('reminders', 'due_at', 'TIMESTAMP NOT NULL DEFAULT
 CALL cp_add_column_if_missing('reminders', 'message', 'VARCHAR(512) NULL');
 CALL cp_add_column_if_missing('reminders', 'done', 'TINYINT(1) NOT NULL DEFAULT 0');
 
+-- applications (make legacy DB compatible with ApplicationRepository SELECT list)
+-- Note: some columns are NOT NULL in schema.sql; here we add as NULL / with safe defaults to avoid failing on existing rows.
+CALL cp_add_column_if_missing('applications', 'job_lead_id', 'BIGINT UNSIGNED NULL');
+CALL cp_add_column_if_missing('applications', 'role_title', 'VARCHAR(255) NULL');
+CALL cp_add_column_if_missing('applications', 'job_url', 'VARCHAR(2048) NULL');
+CALL cp_add_column_if_missing('applications', 'status', 'VARCHAR(32) NULL');
+CALL cp_add_column_if_missing('applications', 'tech_stack_json', 'JSON NULL');
+CALL cp_add_column_if_missing('applications', 'salary_range', 'VARCHAR(255) NULL');
+CALL cp_add_column_if_missing('applications', 'applied_at', 'DATE NULL');
+CALL cp_add_column_if_missing('applications', 'next_follow_up_date', 'DATE NULL');
+CALL cp_add_column_if_missing('applications', 'notes', 'TEXT NULL');
+CALL cp_add_column_if_missing('applications', 'created_at', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP');
+CALL cp_add_column_if_missing('applications', 'updated_at', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+
 DROP PROCEDURE IF EXISTS cp_add_column_if_missing;

@@ -721,6 +721,24 @@ class ScaffoldTest {
             Regex("\"id\"\\s*:\\s*(\\d+)").find(createApp.bodyAsText())?.groupValues?.get(1)?.toLong()
                 ?: error("no app id")
 
+        // Creating with a new company_name should auto-create a minimal target_company (no prior setup required)
+        val createNewCompany = client.post("/api/applications") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "company_name":"NewCo",
+                  "role_title":"Backend Engineer",
+                  "job_url":"https://newco.example.com/jobs/role-123",
+                  "status":"SAVED"
+                }
+                """.trimIndent(),
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createNewCompany.status)
+        assertTrue(createNewCompany.bodyAsText().contains("\"company_name\":\"NewCo\""))
+
         val dupApp = client.post("/api/applications") {
             header(HttpHeaders.Authorization, "Bearer $tokenA")
             contentType(ContentType.Application.Json)

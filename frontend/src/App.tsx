@@ -10,6 +10,8 @@ import { RegisterPage } from './pages/RegisterPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { TargetCompaniesPage } from './pages/TargetCompaniesPage'
 import { JobLeadsPage } from './pages/JobLeadsPage'
+import { ApplicationsPage } from './pages/ApplicationsPage'
+import { KanbanPage } from './pages/KanbanPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 
 export function App() {
@@ -29,10 +31,8 @@ export function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/target-companies" element={<TargetCompaniesPage />} />
               <Route path="/job-leads" element={<JobLeadsPage />} />
-              <Route
-                path="/applications"
-                element={<PlaceholderPage title="Applications" description="Track status, dates, and notes for each application." />}
-              />
+              <Route path="/applications" element={<ApplicationsPage />} />
+              <Route path="/kanban" element={<KanbanPage />} />
               <Route
                 path="/prep"
                 element={<PlaceholderPage title="Interview prep" description="Prep tasks tied to interview plans will show here." />}

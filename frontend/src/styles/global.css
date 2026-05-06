@@ -251,6 +251,103 @@ body {
   border-color: #2563eb;
 }
 
+/* --- Day 16: Kanban board --- */
+
+.cp-kanban {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(220px, 1fr));
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.cp-kanban-col {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  min-height: 360px;
+}
+
+.cp-kanban-col__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.75rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.cp-kanban-col__title {
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: #0f172a;
+}
+
+.cp-kanban-col__count {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.cp-kanban-col__body {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cp-kanban-empty {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.cp-kanban-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.65rem 0.7rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04);
+}
+
+.cp-kanban-card--dragging {
+  opacity: 0.6;
+}
+
+.cp-kanban-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.cp-kanban-card__company {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: #0f172a;
+}
+
+.cp-kanban-card__actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.cp-kanban-card__actions .cp-btn {
+  padding: 0.3rem 0.5rem;
+}
+
+.cp-kanban-card__role {
+  margin-top: 0.25rem;
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.cp-kanban-card__meta {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
 .cp-jl-item__top {
   display: flex;
   align-items: center;

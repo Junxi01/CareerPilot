@@ -9,12 +9,14 @@ import java.sql.Connection
 import java.sql.Date
 import java.sql.Statement
 import java.time.LocalDate
+import java.net.URI
 
 class ApplicationRepository(
     private val db: DatabaseModule,
     private val jobLeads: JobLeadRepository,
 ) {
     private val json = Json
+    private val targetCompanies = com.careerpilot.targetcompanies.TargetCompanyRepository(db)
 
     fun listByUser(
         userId: Long,
@@ -292,10 +294,50 @@ class ApplicationRepository(
         }
     }
 
-    fun resolveCompanyForCreate(userId: Long, companyId: Long?, companyName: String?): ResolvedCompany? {
+    /**
+     * Resolve the `target_companies` row used by `applications.company_id`.
+     *
+     * If `company_name` is provided and no target company exists yet, we create a minimal target company row so users can
+     * start tracking applications without first configuring target companies.
+     */
+    fun resolveCompanyForCreate(
+        userId: Long,
+        companyId: Long?,
+        companyName: String?,
+        jobUrl: String? = null,
+    ): ResolvedCompany? {
         if (companyId != null && companyId > 0) return findCompany(userId, companyId)
-        if (!companyName.isNullOrBlank()) return findCompanyByName(userId, companyName.trim())
-        return null
+        val name = companyName?.trim()?.takeIf { it.isNotBlank() } ?: return null
+
+        findCompanyByName(userId, name)?.let { return it }
+
+        val careersUrl = inferCareersUrl(jobUrl) ?: "https://careerpilot.local/placeholder"
+        val created =
+            targetCompanies.insert(
+                userId = userId,
+                name = name,
+                careersUrl = careersUrl,
+                keywords = emptyList(),
+                locations = emptyList(),
+                active = true,
+                notes = null,
+            )
+        return ResolvedCompany(created.id, created.name)
+    }
+
+    private fun inferCareersUrl(jobUrl: String?): String? {
+        val raw = jobUrl?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        return try {
+            val u = URI(raw)
+            val scheme = u.scheme?.lowercase()
+            if (scheme != "http" && scheme != "https") return null
+            val host = u.host ?: return null
+            val port = u.port
+            val origin = if (port == -1) "$scheme://$host" else "$scheme://$host:$port"
+            origin
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     fun saveFromJobLead(userId: Long, jobLeadId: Long): SaveFromLeadResult =

@@ -363,7 +363,7 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                         )
                     }
                     val resolved =
-                        applications.resolveCompanyForCreate(userId, norm.company_id, norm.company_name)
+                        applications.resolveCompanyForCreate(userId, norm.company_id, norm.company_name, norm.job_url)
                             ?: return@post call.respond(
                                 HttpStatusCode.NotFound,
                                 ApiResponse.fail("company_not_found", "Target company not found"),
