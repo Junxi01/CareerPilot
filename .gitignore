@@ -10,3 +10,4 @@ frontend/.env.local
 .env
 .logs/
 .venv/
+backups/

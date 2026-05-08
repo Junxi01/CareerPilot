@@ -64,12 +64,17 @@ python -m scripts.generate_weekly_report
 python -m scripts.generate_weekly_report --week previous
 ```
 
-Backup database (MySQL in Docker Compose):
+Backup database (MySQL via Docker Compose by default):
 
 ```bash
+python -m scripts.backup_database --help
 python -m scripts.backup_database --dry-run
-python -m scripts.backup_database --output backups/careerpilot.sql
+python -m scripts.backup_database
+python -m scripts.backup_database --compress gzip
+python -m scripts.backup_database --no-docker
 ```
+
+Restore examples and pitfalls: see **`docs/backup-and-restore.md`**.
 
 Import applications from CSV:
 
@@ -78,10 +83,19 @@ python -m scripts.import_applications_from_csv --dry-run ./applications.csv
 python -m scripts.import_applications_from_csv ./applications.csv
 ```
 
+Job watcher (public career pages only — excludes LinkedIn/Indeed/Glassdoor):
+
+```bash
+python -m scripts.job_watcher --help
+python -m scripts.job_watcher --dry-run
+python -m scripts.job_watcher --dry-run --company-id 1
+# Parser smoke test against bundled HTML fixture (still calls API for companies/leads metadata):
+python -m scripts.job_watcher --dry-run --mock-html scripts/examples/mock_careers_page.html
+```
+
 Placeholders:
 
 ```bash
-python -m scripts.job_watcher --dry-run
 python -m scripts.ai_interview_planner --dry-run
 ```
 
