@@ -42,11 +42,26 @@ python -m scripts.check_followups --dry-run
 python -m scripts.check_followups
 ```
 
+### Run it daily (manual)
+
+From the repo root (recommended), run:
+
+```bash
+python -m scripts.check_followups
+```
+
+This will write `reports/followups_today.md` (overwrites the file each run) and print a console summary.
+
+Tips:
+- If auth fails, set `SCRIPTS_API_TOKEN` in `.env` (recommended) or provide `SCRIPTS_EMAIL` + `SCRIPTS_PASSWORD`.
+- The script checks items **due today or overdue** (based on your machine’s local date), but the backend’s notion of “today” follows the server timezone (usually the same machine).
+
 Generate weekly report (read-only):
 
 ```bash
+python -m scripts.generate_weekly_report --dry-run
 python -m scripts.generate_weekly_report
-python -m scripts.generate_weekly_report --format text
+python -m scripts.generate_weekly_report --week previous
 ```
 
 Backup database (MySQL in Docker Compose):
