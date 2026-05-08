@@ -1,0 +1,2 @@
+"""CareerPilot automation scripts package."""
+

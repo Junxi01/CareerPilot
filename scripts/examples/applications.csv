@@ -1,0 +1,4 @@
+company,role_title,status,applied_date,job_url,notes,location,tech_stack,salary_range,follow_up_date
+Acme Corp,Backend Engineer,APPLIED,2026-05-01,https://example.com/jobs/acme-backend-1,"Reached out to recruiter; waiting for response",Remote,"kotlin, mysql",160k-220k,2026-05-08
+Globex,Full Stack Engineer,INTERVIEW,2026-05-03,https://example.com/jobs/globex-fullstack-2,"Phone screen scheduled next week",New York,"react, typescript",,
+NewCo,Data Engineer,SAVED,2026-05-05,https://example.com/jobs/newco-data-3,"Imported from spreadsheet",,"python, sql",,

@@ -1,1 +1,2 @@
-# Placeholder. Add pinned dependencies as scripts are implemented.
+requests>=2.32.0
+mysql-connector-python>=9.0.0
