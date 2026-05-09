@@ -104,6 +104,62 @@ class ApplicationRepository(
         }
     }
 
+    fun findByJobLeadId(userId: Long, jobLeadId: Long): ApplicationRecord? {
+        db.openConnection().use { conn ->
+            conn.prepareStatement(
+                """
+                SELECT a.id, a.user_id, a.company_id, tc.name AS company_name, a.job_lead_id,
+                       a.role_title, a.job_url, a.status, a.tech_stack_json, a.salary_range,
+                       a.applied_at, a.next_follow_up_date, a.notes
+                FROM applications a
+                JOIN target_companies tc ON tc.id = a.company_id AND tc.user_id = a.user_id
+                WHERE a.user_id = ? AND a.job_lead_id = ?
+                LIMIT 1
+                """.trimIndent(),
+            ).use { ps ->
+                ps.setLong(1, userId)
+                ps.setLong(2, jobLeadId)
+                ps.executeQuery().use { rs ->
+                    if (!rs.next()) return null
+                    return readRecord(rs)
+                }
+            }
+        }
+    }
+
+    fun findByJobUrl(userId: Long, jobUrl: String): ApplicationRecord? =
+        db.openConnection().use { conn -> findByJobUrl(conn, userId, jobUrl) }
+
+    /**
+     * Ensures an [applications] row exists for interview-plan attachment.
+     * Does **not** toggle `saved_to_applications` on the job lead (unlike [saveFromJobLead]).
+     */
+    fun ensureApplicationForJobLead(userId: Long, jobLeadId: Long): ApplicationRecord? {
+        val lead = jobLeads.findById(userId, jobLeadId) ?: return null
+        findByJobLeadId(userId, jobLeadId)?.let { return it }
+        findByJobUrl(userId, lead.jobUrl)?.let { return it }
+        return when (
+            val res =
+                insert(
+                    userId = userId,
+                    companyId = lead.companyId,
+                    companyName = lead.companyName,
+                    jobLeadId = jobLeadId,
+                    roleTitle = lead.roleTitle,
+                    jobUrl = lead.jobUrl,
+                    status = ApplicationStatus.SAVED,
+                    techStack = lead.matchedKeywords,
+                    salaryRange = null,
+                    appliedDate = null,
+                    followUpDate = null,
+                    notes = null,
+                )
+        ) {
+            is InsertApplicationResult.Created -> res.record
+            InsertApplicationResult.DuplicateJobUrl -> findByJobUrl(userId, lead.jobUrl)
+        }
+    }
+
     fun insert(
         userId: Long,
         companyId: Long,

@@ -37,6 +37,8 @@ import com.careerpilot.reminders.ReminderValidation
 import com.careerpilot.dashboard.DashboardRecentJobLeadsDto
 import com.careerpilot.dashboard.DashboardRepository
 import com.careerpilot.dashboard.DashboardUpcomingInterviewsDto
+import com.careerpilot.interviewplans.InterviewPlanRepository
+import com.careerpilot.interviewplans.UpsertInterviewPlanRequest
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
@@ -101,6 +103,7 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
     val jobLeads = JobLeadRepository(db)
     val jobLeadDiscovery = JobLeadDiscoveryService(targetCompanies, jobLeads)
     val applications = ApplicationRepository(db, jobLeads)
+    val interviewPlans = InterviewPlanRepository(db, applications)
     val interviews = InterviewRepository(db, applications)
     val reminders = ReminderRepository(db, applications)
     val dashboard = DashboardRepository(db)
@@ -607,6 +610,56 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                 }
             }
 
+            route("/api/interview-plans") {
+                get("{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val plan = interviewPlans.findByIdForUser(userId, id)
+                        ?: return@get call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(plan))
+                }
+
+                delete("{id}") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val ok = interviewPlans.deleteForUser(userId, id)
+                    if (!ok) return@delete call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(Unit))
+                }
+            }
+
+            route("/api/prep/tasks") {
+                get {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val applicationId = call.request.queryParameters["application_id"]?.toLongOrNull()
+                    val status = call.request.queryParameters["status"]?.trim()?.takeIf { it.isNotBlank() }
+                    val items = interviewPlans.listPrepTasks(userId, applicationId, status)
+                    call.respond(ApiResponse.ok(items))
+                }
+
+                get("today") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val items = interviewPlans.listPrepTasksDueToday(userId)
+                    call.respond(ApiResponse.ok(items))
+                }
+
+                patch("{id}/complete") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val id = call.parameters["id"]?.toLongOrNull()
+                        ?: return@patch call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    val updated = interviewPlans.completePrepTask(userId, id)
+                        ?: return@patch call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(updated))
+                }
+            }
+
             route("/api/job-leads") {
                 get {
                     val principal = call.principal<JWTPrincipal>()!!
@@ -713,6 +766,32 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                                 ApiResponse.fail("duplicate_job_url", "Application already exists for this job URL"),
                             )
                     }
+                }
+
+                get("{id}/interview-plan") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val jobLeadId = call.parameters["id"]?.toLongOrNull()
+                        ?: return@get call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    if (jobLeads.findById(userId, jobLeadId) == null) {
+                        return@get call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    }
+                    val plan = interviewPlans.findLatestForJobLead(userId, jobLeadId)
+                        ?: return@get call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    call.respond(ApiResponse.ok(plan))
+                }
+
+                post("{id}/interview-plan") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val jobLeadId = call.parameters["id"]?.toLongOrNull()
+                        ?: return@post call.respond(HttpStatusCode.BadRequest, ApiResponse.fail("bad_request", "Invalid id"))
+                    if (jobLeads.findById(userId, jobLeadId) == null) {
+                        return@post call.respond(HttpStatusCode.NotFound, ApiResponse.fail("not_found", "Not found"))
+                    }
+                    val req = call.receive<UpsertInterviewPlanRequest>()
+                    val plan = interviewPlans.upsertForJobLead(userId, jobLeadId, req)
+                    call.respond(HttpStatusCode.Created, ApiResponse.ok(plan))
                 }
 
                 get("/{id}") {

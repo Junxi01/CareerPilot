@@ -11,6 +11,7 @@ import { LoadingState } from '../components/ui/LoadingState'
 import { TextInput } from '../components/ui/TextInput'
 import { TextArea } from '../components/ui/TextArea'
 import { TagInput } from '../components/ui/TagInput'
+import { InterviewPlanSection } from '../components/interviewPlan/InterviewPlanSection'
 
 type SavedFilter = 'all' | 'saved' | 'unsaved'
 
@@ -777,6 +778,8 @@ export function JobLeadsPage() {
                   <div className="cp-jl-detail__preview">{preview(detail.raw_description)}</div>
                 </div>
               ) : null}
+
+              <InterviewPlanSection jobLeadId={detail.id} />
 
               <div className="cp-jl-detail__actions">
                 <button

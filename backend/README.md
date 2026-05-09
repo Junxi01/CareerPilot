@@ -127,6 +127,20 @@ All endpoints require `Authorization: Bearer <token>`. List and mutation operati
 
 There is **no per-user timezone** in the API yet. `/today` and “what counts as today” follow **server local time**. Clients should read/write instants as **ISO-8601** strings from/to JSON so parsing stays consistent across frontend and backend.
 
+### AI interview plans & prep tasks (Day 25)
+
+Requires `Authorization: Bearer <token>`. Plans are stored per **application** (`ai_interview_plans.application_id`), accessed by **job lead** through the owning application. Only the authenticated owner can read or change plans and prep tasks.
+
+**Contract:** `POST` accepts JSON produced offline (e.g. `scripts/ai_interview_planner.py`). The server does **not** spawn Python or call model APIs — see `docs/interview-plan-api.md`.
+
+- `GET /api/job-leads/{id}/interview-plan` — latest plan for that lead (**404** if no application/plan yet).
+- `POST /api/job-leads/{id}/interview-plan` — body: `plan_json`, `plan_markdown`, optional `prompt_json`, `provider_mode`, `prep_tasks`; replaces any existing plan for that application (**201 Created**).
+- `GET /api/interview-plans/{id}` — fetch by plan id.
+- `DELETE /api/interview-plans/{id}` — delete plan (cascades `prep_tasks`).
+- `GET /api/prep/tasks` — optional query: `application_id`, `status`.
+- `GET /api/prep/tasks/today` — due today (server-local calendar date), `status <> done`.
+- `PATCH /api/prep/tasks/{id}/complete` — marks task `done`.
+
 ### Dashboard (aggregated)
 
 All endpoints require `Authorization: Bearer <token>` and return only data for the authenticated user. Aggregations are always filtered by the authenticated `user_id` (directly on `applications` / `reminders`, or via `applications` / `target_companies` joins for interviews, job leads, and prep tasks).

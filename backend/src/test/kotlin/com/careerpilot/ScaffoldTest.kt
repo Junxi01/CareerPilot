@@ -1226,6 +1226,7 @@ class ScaffoldTest {
                       provider_mode VARCHAR(16) NOT NULL DEFAULT 'mock',
                       prompt_json TEXT NULL,
                       plan_json TEXT NOT NULL,
+                      plan_markdown TEXT NULL,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
@@ -1411,5 +1412,308 @@ class ScaffoldTest {
         assertEquals(HttpStatusCode.OK, prep.status)
         assertTrue(prep.bodyAsText().contains("Review JD"))
     }
-}
 
+    @Test
+    fun `interview plan APIs prep tasks and ownership`() = testApplication {
+        val e = env("interview_plan_day25")
+        application { moduleWithEnv(e) }
+
+        java.sql.DriverManager.getConnection(e["DB_JDBC_URL"], "sa", "").use { c ->
+            c.createStatement().use { st ->
+                st.execute(
+                    """
+                    CREATE TABLE users (
+                      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                      email VARCHAR(255) NOT NULL,
+                      password_hash VARCHAR(255) NULL,
+                      display_name VARCHAR(190) NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                    """.trimIndent(),
+                )
+                st.execute("CREATE UNIQUE INDEX uq_users_email ON users(email);")
+                st.execute(
+                    """
+                    CREATE TABLE target_companies (
+                      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                      user_id BIGINT NOT NULL,
+                      name VARCHAR(190) NOT NULL,
+                      careers_page_url VARCHAR(2048) NOT NULL,
+                      active BOOLEAN NOT NULL DEFAULT TRUE,
+                      locations_json TEXT NULL,
+                      role_keywords_json TEXT NULL,
+                      tech_keywords_json TEXT NULL,
+                      notes TEXT NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                    """.trimIndent(),
+                )
+                st.execute("CREATE INDEX ix_target_companies_user_id ON target_companies(user_id);")
+                st.execute(
+                    """
+                    CREATE TABLE job_leads (
+                      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                      company_id BIGINT NOT NULL,
+                      title VARCHAR(255) NOT NULL,
+                      url VARCHAR(2048) NOT NULL,
+                      location VARCHAR(255) NULL,
+                      raw_description TEXT NULL,
+                      discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      match_score DECIMAL(5,2) NULL,
+                      saved_to_applications BOOLEAN NOT NULL DEFAULT FALSE,
+                      status VARCHAR(32) NOT NULL DEFAULT 'new',
+                      source VARCHAR(64) NOT NULL DEFAULT 'career_page',
+                      matched_keywords_json TEXT NULL,
+                      raw_json TEXT NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                    """.trimIndent(),
+                )
+                st.execute("CREATE INDEX ix_job_leads_company_id ON job_leads(company_id);")
+                st.execute(
+                    """
+                    CREATE TABLE applications (
+                      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                      user_id BIGINT NOT NULL,
+                      company_id BIGINT NOT NULL,
+                      job_lead_id BIGINT NULL,
+                      role_title VARCHAR(255) NOT NULL,
+                      job_url VARCHAR(2048) NOT NULL,
+                      status VARCHAR(32) NOT NULL,
+                      tech_stack_json TEXT NULL,
+                      salary_range VARCHAR(255) NULL,
+                      applied_at DATE NULL,
+                      next_follow_up_date DATE NULL,
+                      notes TEXT NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                    """.trimIndent(),
+                )
+                st.execute("CREATE UNIQUE INDEX uq_app_user_url ON applications(user_id, job_url);")
+                st.execute(
+                    """
+                    CREATE TABLE ai_interview_plans (
+                      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                      application_id BIGINT NOT NULL,
+                      provider_mode VARCHAR(16) NOT NULL DEFAULT 'mock',
+                      prompt_json TEXT NULL,
+                      plan_json TEXT NOT NULL,
+                      plan_markdown TEXT NULL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                    """.trimIndent(),
+                )
+                st.execute(
+                    """
+                    CREATE TABLE prep_tasks (
+                      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                      ai_interview_plan_id BIGINT NOT NULL,
+                      label VARCHAR(255) NOT NULL,
+                      description TEXT NULL,
+                      due_date DATE NULL,
+                      status VARCHAR(32) NOT NULL DEFAULT 'todo',
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                    """.trimIndent(),
+                )
+                st.execute("CREATE INDEX ix_prep_tasks_ai_interview_plan_id ON prep_tasks(ai_interview_plan_id);")
+                st.execute("CREATE INDEX ix_prep_tasks_due_date ON prep_tasks(due_date);")
+            }
+        }
+
+        suspend fun registerAndLogin(email: String): String {
+            val reg = client.post("/api/auth/register") {
+                contentType(ContentType.Application.Json)
+                setBody("""{"email":"$email","password":"password123","displayName":"X"}""")
+            }
+            assertEquals(HttpStatusCode.Created, reg.status)
+            val login = client.post("/api/auth/login") {
+                contentType(ContentType.Application.Json)
+                setBody("""{"email":"$email","password":"password123"}""")
+            }
+            assertEquals(HttpStatusCode.OK, login.status)
+            val body = login.bodyAsText()
+            return Regex("\"token\"\\s*:\\s*\"([^\"]+)\"").find(body)?.groupValues?.get(1)
+                ?: error("Missing token: $body")
+        }
+
+        val tokenA = registerAndLogin("plan-owner@day25.com")
+        val tokenB = registerAndLogin("plan-other@day25.com")
+
+        val createCompany = client.post("/api/target-companies") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+            contentType(ContentType.Application.Json)
+            setBody(
+                """{"name":"CoPlan","careers_url":"https://coplan.example/jobs","keywords":["k"],"active":true}""",
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createCompany.status)
+        val companyId =
+            Regex("\"id\"\\s*:\\s*(\\d+)").find(createCompany.bodyAsText())?.groupValues?.get(1)?.toLong()
+                ?: error("company id")
+
+        val createLead = client.post("/api/job-leads") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "company_id": $companyId,
+                  "role_title":"Engineer",
+                  "job_url":"https://jobs.example.com/plan-day25",
+                  "matched_keywords":["kotlin"],
+                  "match_score": 90.0,
+                  "saved_to_applications": false
+                }
+                """.trimIndent(),
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createLead.status)
+        val leadId =
+            Regex("\"id\"\\s*:\\s*(\\d+)").find(createLead.bodyAsText())?.groupValues?.get(1)?.toLong()
+                ?: error("lead id")
+
+        assertEquals(
+            HttpStatusCode.NotFound,
+            client.get("/api/job-leads/$leadId/interview-plan") {
+                header(HttpHeaders.Authorization, "Bearer $tokenA")
+            }.status,
+        )
+
+        val postPlan = client.post("/api/job-leads/$leadId/interview-plan") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "plan_json": {"summary":"Test plan","topics":["system design"]},
+                  "plan_markdown": "## Interview plan\n\nPractice loops.",
+                  "provider_mode": "external",
+                  "prep_tasks": [
+                    {"label":"Today task","due_day_offset":0},
+                    {"label":"Week task","due_day_offset":7}
+                  ]
+                }
+                """.trimIndent(),
+            )
+        }
+        assertEquals(HttpStatusCode.Created, postPlan.status)
+        val planBody = postPlan.bodyAsText()
+        assertTrue(planBody.contains("## Interview plan"))
+        val planId =
+            Regex("\"id\"\\s*:\\s*(\\d+)").find(planBody)?.groupValues?.get(1)?.toLong()
+                ?: error("plan id")
+
+        val getByLead = client.get("/api/job-leads/$leadId/interview-plan") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.OK, getByLead.status)
+        assertTrue(getByLead.bodyAsText().contains("\"id\":$planId"))
+
+        val getByPlanId = client.get("/api/interview-plans/$planId") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.OK, getByPlanId.status)
+
+        assertEquals(
+            HttpStatusCode.NotFound,
+            client.get("/api/interview-plans/$planId") {
+                header(HttpHeaders.Authorization, "Bearer $tokenB")
+            }.status,
+        )
+
+        val listPrep = client.get("/api/prep/tasks") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.OK, listPrep.status)
+        val prepText = listPrep.bodyAsText()
+        assertTrue(prepText.contains("Today task"))
+        val taskId =
+            Regex("\"id\"\\s*:\\s*(\\d+)").find(prepText)?.groupValues?.get(1)?.toLong()
+                ?: error("task id")
+
+        val todayList = client.get("/api/prep/tasks/today") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.OK, todayList.status)
+        assertTrue(todayList.bodyAsText().contains("Today task"))
+
+        val done = client.patch("/api/prep/tasks/$taskId/complete") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.OK, done.status)
+        assertTrue(done.bodyAsText().contains("\"status\":\"done\""))
+
+        val doneAgain = client.patch("/api/prep/tasks/$taskId/complete") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.OK, doneAgain.status)
+        assertTrue(doneAgain.bodyAsText().contains("\"status\":\"done\""))
+
+        assertEquals(
+            HttpStatusCode.NotFound,
+            client.patch("/api/prep/tasks/$taskId/complete") {
+                header(HttpHeaders.Authorization, "Bearer $tokenB")
+            }.status,
+        )
+
+        val replacePlan = client.post("/api/job-leads/$leadId/interview-plan") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "plan_json": {"summary":"Replacement plan","new_field":{"nested":true}},
+                  "plan_markdown": "## Replacement\n\nPractice APIs.",
+                  "provider_mode": "mock",
+                  "prep_tasks": [
+                    {"label":"Replacement task","due_day_offset":0}
+                  ]
+                }
+                """.trimIndent(),
+            )
+        }
+        assertEquals(HttpStatusCode.Created, replacePlan.status)
+        assertFalse(replacePlan.bodyAsText().contains("\"id\":$planId"))
+        val replacementPlanId =
+            Regex("\"id\"\\s*:\\s*(\\d+)").find(replacePlan.bodyAsText())?.groupValues?.get(1)?.toLong()
+                ?: error("replacement plan id")
+
+        val listAfterReplace = client.get("/api/prep/tasks") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.OK, listAfterReplace.status)
+        val afterReplaceText = listAfterReplace.bodyAsText()
+        assertTrue(afterReplaceText.contains("Replacement task"))
+        assertFalse(afterReplaceText.contains("Today task"))
+
+        val delPlan = client.delete("/api/interview-plans/$planId") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.NotFound, delPlan.status)
+
+        val delReplacementPlan = client.delete("/api/interview-plans/$replacementPlanId") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.OK, delReplacementPlan.status)
+
+        assertEquals(
+            HttpStatusCode.NotFound,
+            client.get("/api/interview-plans/$replacementPlanId") {
+                header(HttpHeaders.Authorization, "Bearer $tokenA")
+            }.status,
+        )
+
+        val listAfterDelete = client.get("/api/prep/tasks") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+        }
+        assertEquals(HttpStatusCode.OK, listAfterDelete.status)
+        assertFalse(listAfterDelete.bodyAsText().contains("Replacement task"))
+    }
+}
