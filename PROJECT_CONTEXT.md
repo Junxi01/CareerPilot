@@ -25,7 +25,7 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 | 后端 | Kotlin + Ktor，Gradle | `backend/settings.gradle.kts`，`backend/build.gradle.kts`；入口 `com.careerpilot.ApplicationKt`，`application.conf` 配端口 |
 | 前端 | React 18 + TypeScript + Vite 5 | `frontend/package.json`、`frontend/tsconfig.json`、`frontend/vite.config.ts` |
 | 数据库 | MySQL 8.0（开发可 H2） | `database/schema.sql` / `seed.sql` 已有业务表定义；后端通过 JDBC 读写 |
-| 脚本 | Python | 已有 API/DB 配置 helpers、follow-up 检查、周报、备份、CSV 导入、job watcher；AI interview planner 仍占位 |
+| 脚本 | Python | API/DB helpers、follow-up、周报、备份、CSV 导入、job watcher；**AI：`scripts/common/ai_provider.py`（openai/gemini/mock）、`scripts/test_ai_provider.py`、`scripts/ai_interview_planner.py`（落库计划见 §4 Day 24）** |
 | 部署 | Docker Compose + 本地脚本 | Compose 目前仅 **`mysql:8.0` 服务**：持久卷、healthcheck、首次初始化挂载 `database/schema.sql` + `seed.sql`；后端/前端通过 `scripts/local-up.sh` 在宿主启动 |
 | 密钥 | `.env`（不提交） | 模板见 `.env.example` |
 
@@ -112,13 +112,21 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 - `scripts/local-up.sh` / `local-down.sh` / `run-backend-with-env.sh`：本地一键启动/停止 MySQL + 后端 + 前端；自动修正本机 `DB_HOST=localhost`、必要时生成本地 `JWT_SECRET`
 - `scripts/install-git-hooks.sh` 与 `scripts/git-hooks/commit-msg`：可安装 repo-local commit-msg hook，剥离 `Co-authored-by` / `Made-with` 等 trailer
 
+### Day 24 — AI Provider 抽象与 CLI 面试计划（脚本侧已完成）
+
+- **`scripts/common/ai_provider.py`**：`AI_PROVIDER=openai|gemini|mock`（未设置时可回落 **`AI_MODE`**）；OpenAI 读取 **`AI_API_KEY`**、**`AI_MODEL`**、可选 **`AI_API_BASE_URL`**；Gemini 读取 **`GEMINI_API_KEY`** 或 **`GOOGLE_API_KEY`**、**`GEMINI_MODEL`**、可选 **`GEMINI_API_BASE_URL`**；OpenAI 使用 Chat Completions + JSON object，Gemini 使用 `generateContent` + JSON response MIME；urllib3 重试 + 超时/连接额外重试；**无硬编码密钥**；缺 key 时 **`MissingApiKeyError`** 明确提示；401/403/429 有明确诊断；JSON parse 失败会写 **`reports/ai_provider_debug_*.json`**，且不写请求 headers/API key，并对当前 key 文本做 redaction。
+- **`scripts/test_ai_provider.py`**：`python scripts/test_ai_provider.py` 冒烟（mock 默认）。
+- **`scripts/ai_interview_planner.py`**：输入 **`job_lead_id`** 或 **`--latest-unsaved`**；可选 **`--from-file`** 覆盖职位描述正文；**`--dry-run`** 只写 `reports/interview_plan_<id>_dry_run.md`、不写库。拉取 **`GET /api/job-leads`**、**`GET /api/me`**，将职位与候选人上下文送入 AI，要求结构化 JSON（summary、skills、topics、seven_day_plan、题库类字段、**prep_tasks** 等）。写入前会做 schema validation，缺字段/类型错会明确报 **`Schema error`** 并停止；职位描述超过 **12,000 chars** 会截断并在控制台/Markdown 提示。**持久化**：后端暂无 interview plan 的 REST，脚本经 **`scripts/common/db.py`** 直连 MySQL：必要时插入 **`applications`**（`SAVED` + `job_lead_id`），写入 **`ai_interview_plans`**（`prompt_json` / `plan_json`）与 **`prep_tasks`**（按 `due_day_offset` 填 `due_date`）；非 dry-run DB 写入使用事务，失败会 rollback，避免半条计划。重复生成策略：覆盖同一 application 既有 plan/tasks 后创建新 plan。正式运行报告路径 **`reports/interview_plan_<job_lead_id>.md`**。
+- **`.env.example`**：已补充 **`AI_PROVIDER`**、OpenAI/Gemini model/key 等说明（与旧 **`AI_MODE`** 并存）。
+- **边界**：`/prep` 前端仍占位；计划生成目前为 **CLI + DB**，非 App 内按钮；纯 JS career site 与 discovery 无关本条。
+
 ### Day 19–22 — Job watcher（已完成可用版，继续增强中）
 
 - `scripts/job_watcher.py`：通过 API 读取 active target companies，默认以 `careers_url` 为 seed 做轻量 HTML crawl；支持 `--dry-run`、`--company-id`、`--mock-html`、`--no-discovery`、`--max-discovery-pages`、`--max-discovery-depth`、`--verbose-discovery`
 - 抓取边界：继续强制跳过 LinkedIn / Indeed / Glassdoor；只处理 http(s) 公开页；允许从公司 seed 域名跳到同组织域名或常见 ATS host（Greenhouse、Lever、SmartRecruiters、Workday 等）
 - 解析能力：普通 `<a>` 链接启发式、JSON-LD `JobPosting`、页面脚本/嵌入文本里的 job URL 与相对路径；按公司 keywords / locations 打分；通过 `/api/job-leads` 创建新线索，并处理重复 URL
 - ATS/API fallback：已支持 Ashby Posting API、Workday CXS、SmartRecruiters API；同时扩展了 Greenhouse、Lever、Jobvite、SuccessFactors、Taleo、Eightfold、Rippling ATS、Pinpoint、Recruiting.com、Oracle 等常见招聘域名识别
-- 当前限制：仍不渲染 JavaScript-only careers site；少数强前端渲染或反爬站点仍可能漏抓；AI interview planner 仍未产品化
+- 当前限制：仍不渲染 JavaScript-only careers site；少数强前端渲染或反爬站点仍可能漏抓。（CLI 面试计划见 **§4 Day 24**。）
 
 ### Day 23 — App 内岗位发现与失效链接清理（已完成可用版）
 
@@ -136,24 +144,25 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 
 - **无**后端内置迁移（Flyway/Liquibase）；仍以 **外部** `schema.sql` 初始化为主
 - **`docker-compose.yml`**：当前 **仅 MySQL** 服务；backend/frontend 可用 **`scripts/local-up.sh`** 在宿主启动（见根 `README.md`）
-- **无** AI 提供商真实编排（`.env.example` 预留变量；prep/plan 相关表已存在，产品化调用待实现）
-- **无**后端 API 级 prep/AI plan 产品流；`/prep` 页面仍为 placeholder
+- **AI 面试计划**：脚本已可写入 **`ai_interview_plans` / `prep_tasks`**（见 Day 24）；**尚无** Kotlin **`/api/...` interview-plan** 路由；App 内一键生成计划未接
+- **无**后端 API 级 prep/AI plan 产品流；**`/prep` 页面仍为 placeholder**（读库展示计划待做）
 - **前端 Dashboard** 仍只展示 stats；follow-ups、recent leads、upcoming interviews、prep summary 的 API client 已有，页面 widget 待完善
 - **Settings / 用户偏好** 未实现；`app_settings` 表存在但未产品化
-- **Job discovery** 仍是 HTTP HTML + JSON-LD 方案；JS 渲染站点命中率有限，app-native 版本与 Python 脚本暂未完全合并为同一实现
+- **Job discovery** 仍是 HTTP HTML/JSON/API 方案；JS 渲染站点命中率有限；app-native 后端与 Python watcher 已同步主要规则，但仍是两套实现，后续可抽 fixture/测试来防止规则漂移
 - **E2E / 前端测试** 与生产级全容器 Compose 尚未落地
 
 ### 最近一次会话交接（模板：每次收尾覆写本小节）
 
-- **日期**：2026-05-08
-- **本次完成**：按当前 Day 22/23 代码状态同步 **`PROJECT_CONTEXT.md`**；新增 app-native Job Leads 操作，把“终端跑 `scripts.job_watcher`”包装为前端 **Find jobs** 按钮，并新增 **Remove closed links** 清理明确失效的 unsaved leads；增强 Python watcher 与后端 discovery 的泛用性，支持 HTML/JSON-LD/嵌入脚本 URL 与 Ashby/Workday/SmartRecruiters API fallback；修复 discovery 命中数据库全局重复 URL 时 500 的问题，改为 `duplicates_skipped`；清理被误跟踪的 `scripts/__pycache__` bytecode。
+- **日期**：2026-05-09
+- **本次完成**：更新 **`PROJECT_CONTEXT.md`** 以反映 **Day 24**：新增 **`scripts/common/ai_provider.py`**（`AI_PROVIDER=openai|gemini|mock`，OpenAI/Gemini key 与 model 配置，超时与重试，无硬编码密钥，401/403/429 明确诊断，JSON parse 失败写 redacted debug 文件）、**`scripts/test_ai_provider.py`**、**`scripts/ai_interview_planner.py`**（按 job lead 拉 `/api/me` + lead，调用 AI 产出结构化 JSON，schema validation，长 JD 截断提示，**`--dry-run`** 写 `reports/interview_plan_<id>_dry_run.md`，正式运行经 **MySQL transaction** 写入 **`ai_interview_plans`** / **`prep_tasks`**，必要时创建 **`applications`**；重复生成覆盖同 application 旧 plan/tasks；因后端尚无 plan REST，持久化走 **`scripts/common/db.py`**）。**`.env.example`** / **`scripts/README.md`** 已对齐 AI 变量与命令说明。§2 技术栈表、§6 脚本示例、§7 下一步中「AI / Prep」条目已改为「脚本已落地、产品与 `/prep` 仍待接」。
 - **未完成 / 阻塞**：
-  - 宿主机跑后端时 `DB_HOST=localhost` vs 容器内 `mysql` 主机名仍易混（见 `docs/local-setup.md` / `.env.example`）
-  - JavaScript-only careers site 仍未接浏览器渲染引擎，少数强前端渲染站点可能漏抓
-  - AI prep 产品流、settings、dashboard 完整 widgets、E2E 与生产 Compose 一体化仍待推进
-- **关键路径 / 涉及文件**：`PROJECT_CONTEXT.md`、`backend/README.md`、`backend/src/main/kotlin/com/careerpilot/Application.kt`、`backend/src/main/kotlin/com/careerpilot/jobleads/JobLeadDiscovery*`、`frontend/src/api/jobLeads.ts`、`frontend/src/types/jobLead.ts`、`frontend/src/pages/JobLeadsPage.tsx`、`frontend/src/styles/global.css`
-- **已运行验证**：后端 `./gradlew test` 通过；前端 `npm run typecheck` 通过；`python -m py_compile scripts/job_watcher.py` 通过；真实链接 smoke test 覆盖 Ashby、NVIDIA Workday、Stripe、OpenAI careers；本地 API smoke 覆盖 register、target company create、`/api/job-leads/discover`、重复 URL skip、`/api/job-leads/refresh-invalid`。
-- **给下一对话的一句话**：Job Leads 页面现在已有 Find jobs / Remove closed links；Python watcher 与 app-native discovery 已支持常见公开 career pages 和部分 ATS API fallback，下一步可补 fixture/E2E 或继续完善 JS-rendered site 支持。
+  - **Interview plan 产品化**：Ktor **无** dedicated interview-plan API；**`/prep`** 仍为占位，未读 `ai_interview_plans`
+  - 宿主机 **`DB_HOST=localhost`** vs 容器 **`mysql`** 仍易混（见 `docs/local-setup.md`）
+  - JavaScript-only careers site：discovery 命中率有限；未接浏览器渲染引擎
+  - Settings、Dashboard 全量 widgets、E2E、Compose 一体化仍待推进
+- **关键路径 / 涉及文件**：`PROJECT_CONTEXT.md`、`scripts/common/ai_provider.py`、`scripts/test_ai_provider.py`、`scripts/ai_interview_planner.py`、`scripts/common/db.py`、`scripts/README.md`、`.env.example`、`database/schema.sql`（`ai_interview_plans` / `prep_tasks`）
+- **已运行验证（本轮文档依据）**：`python -m py_compile scripts/common/ai_provider.py scripts/test_ai_provider.py scripts/ai_interview_planner.py`；`AI_PROVIDER=mock python scripts/test_ai_provider.py`；`AI_PROVIDER=openai AI_API_KEY=` 缺 key 报错检查；fake response 覆盖 JSON parse debug 文件、key redaction、401、429、timeout/retry 错误提示；构造数据覆盖 planner schema validation、长 JD 截断、Markdown preview；`python -m scripts.ai_interview_planner --help`；本地 mock 端到端 smoke 覆盖 register、company、job lead、dry-run Markdown、正式写入 **1 条 ai_interview_plans + 3 条 prep_tasks**、重复生成覆盖旧 plan（最终仍 1 条 plan）、测试数据清理。OpenAI real API 需用户本机配置有效 `AI_API_KEY` 后自测。
+- **给下一对话的一句话**：脚本侧 AI provider 与 CLI 面试计划已接 MySQL；若要产品化，优先 **REST + `/prep` 读库** 或与 Kotlin 共享生成契约。
 
 ---
 
@@ -210,6 +219,8 @@ cd careerpilot-local
 ```bash
 cd careerpilot-local
 python -m scripts.job_watcher --dry-run --mock-html scripts/examples/mock_careers_page.html
+python scripts/test_ai_provider.py
+python -m scripts.ai_interview_planner --latest-unsaved --dry-run   # 需有效 JWT + 至少一条 unsaved lead
 python -m scripts.check_followups --dry-run
 python -m scripts.generate_weekly_report --dry-run
 ```
@@ -222,7 +233,7 @@ python -m scripts.generate_weekly_report --dry-run
 
 1. **Job discovery 质量**：补 fixture/E2E，统一 Python watcher 与 app-native discovery 的规则；确认 crawl、JSON-LD、ATS 跳转、duplicate handling、closed-link cleanup 可重复。
 2. **前端 Dashboard**：把已存在的 `/api/dashboard/follow-ups`、`recent-job-leads`、`upcoming-interviews`、`prep-summary` client 接到页面 widgets。
-3. **AI / Prep**：实现 `AI_MODE=mock|real` 的后端或脚本编排，mock 固定结构，real 走 `.env` 中 HTTP/提供商配置；落到 `ai_interview_plans` / `prep_tasks` 并接 `/prep` 页面。
+3. **AI / Prep（产品化）**：脚本已具备 **`ai_provider` + `ai_interview_planner` → MySQL**（Day 24）；下一步可做 **后端 REST**（创建/读取 plan）、**`/prep` 页面**读 `ai_interview_plans`/`prep_tasks`，或与脚本共用契约；可选将 CLI 逻辑迁入 Ktor 复用。
 4. **Compose（可选）**：将 `backend`（及后续 `frontend`）写入 `docker-compose.yml`，与 MySQL 网络/health 对齐；文档区分宿主机跑后端 vs 全容器。
 5. **迁移（可选）**：引入 Flyway/Liquibase，与现有 `schema.sql` 初始化策略衔接。
 6. **测试**：补前端单测/E2E 或最小 Playwright smoke；后端继续扩展 repository/route 测试；scripts 补 fixture-based smoke。

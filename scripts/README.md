@@ -26,6 +26,49 @@ SCRIPTS_PASSWORD=...
 - Support `--dry-run` where useful
 - Never scrape LinkedIn/Indeed/Glassdoor or login-required websites
 
+### AI provider (scripts abstraction)
+
+`scripts/common/ai_provider.py` implements **`AI_PROVIDER=mock`** (deterministic JSON), **`AI_PROVIDER=openai`** (Chat Completions + `response_format` JSON), and **`AI_PROVIDER=gemini`** (Gemini `generateContent` + JSON response MIME). Set **`AI_API_KEY`** / **`AI_MODEL`** for OpenAI, or **`GEMINI_API_KEY`** / **`GEMINI_MODEL`** for Gemini; see `.env.example`.
+
+```bash
+cd careerpilot-local
+python scripts/test_ai_provider.py
+# or: PYTHONPATH=. python -m scripts.test_ai_provider
+```
+
+Debug behavior:
+- Missing `AI_API_KEY` in OpenAI mode exits with a clear configuration error.
+- Missing `GEMINI_API_KEY` / `GOOGLE_API_KEY` in Gemini mode exits with a clear configuration error.
+- HTTP 401/403 points to API key/auth/permission; HTTP 429 points to rate limit/quota and retry.
+- Timeout/connection/retry failures are reported as `AiProviderError` instead of silent exits.
+- JSON parse failures save raw API/model output to `reports/ai_provider_debug_*.json`; request headers and API keys are not written, and any matching key text is redacted.
+
+Gemini example:
+
+```bash
+AI_PROVIDER=gemini
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=...
+python scripts/test_ai_provider.py
+```
+
+AI interview planner (calls `scripts/common/ai_provider.py`, loads job lead via API, writes `reports/interview_plan_<job_lead_id>.md`; persists `ai_interview_plans` + `prep_tasks` via **MySQL** — backend HTTP routes for plans are not required):
+
+```bash
+python -m scripts.ai_interview_planner --help
+python -m scripts.ai_interview_planner 42 --dry-run
+python -m scripts.ai_interview_planner --latest-unsaved --dry-run
+python -m scripts.ai_interview_planner 42 --from-file ./job_description.txt
+```
+
+Needs `SCRIPTS_*` auth and `DB_*` credentials for non–dry-run saves.
+
+Planner behavior:
+- AI output is schema-validated before any Markdown or DB write. Missing keys or wrong types fail with a clear `Schema error`.
+- Long job descriptions are truncated to 12,000 characters before sending to AI; the script prints a warning and includes the note in the Markdown preview.
+- Non–dry-run DB writes use a transaction. If application/plan/task persistence fails, the script rolls back and does not leave a partial plan.
+- Re-running for the same application **overwrites** existing `ai_interview_plans` and their `prep_tasks` for that application, then creates a fresh plan.
+
 ### Commands
 
 Recommended invocation (avoids Python path issues):
