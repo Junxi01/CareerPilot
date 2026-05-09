@@ -1,6 +1,13 @@
 import { apiGet, apiJson } from './client'
 import type { ApplicationDto } from '../types/application'
-import type { CreateJobLeadRequest, JobLeadDto } from '../types/jobLead'
+import type {
+  CreateJobLeadRequest,
+  DiscoverJobLeadsRequest,
+  DiscoverJobLeadsResponse,
+  JobLeadDto,
+  RefreshInvalidJobLeadsRequest,
+  RefreshInvalidJobLeadsResponse,
+} from '../types/jobLead'
 
 export type JobLeadsFilters = {
   company_id?: number
@@ -45,3 +52,10 @@ export function saveLeadAsApplication(id: number): Promise<ApplicationDto> {
   return apiJson<ApplicationDto>(`/api/job-leads/${id}/save-as-application`, { method: 'POST', body: {} })
 }
 
+export function discoverJobLeads(req: DiscoverJobLeadsRequest): Promise<DiscoverJobLeadsResponse> {
+  return apiJson<DiscoverJobLeadsResponse>('/api/job-leads/discover', { method: 'POST', body: req })
+}
+
+export function refreshInvalidJobLeads(req: RefreshInvalidJobLeadsRequest): Promise<RefreshInvalidJobLeadsResponse> {
+  return apiJson<RefreshInvalidJobLeadsResponse>('/api/job-leads/refresh-invalid', { method: 'POST', body: req })
+}

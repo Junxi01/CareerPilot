@@ -35,3 +35,34 @@ export type PatchJobLeadRequest = {
   discovered_at?: string | null
   saved_to_applications?: boolean | null
 }
+
+export type DiscoverJobLeadsRequest = {
+  company_id?: number | null
+  min_match_score?: number
+  max_pages_per_company?: number
+  max_depth?: number
+}
+
+export type DiscoverJobLeadsResponse = {
+  companies_scanned: number
+  leads_found: number
+  leads_created: number
+  duplicates_skipped: number
+  low_score_skipped: number
+  fetch_errors: number
+  created_items: JobLeadDto[]
+}
+
+export type RefreshInvalidJobLeadsRequest = {
+  company_id?: number | null
+  delete_saved?: boolean
+}
+
+export type RefreshInvalidJobLeadsResponse = {
+  checked: number
+  deleted: number
+  kept: number
+  skipped_saved: number
+  uncertain: number
+  deleted_items: JobLeadDto[]
+}

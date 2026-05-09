@@ -14,7 +14,7 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 
 - **不**爬取或依赖 LinkedIn / Indeed / Glassdoor 等聚合站，也**不**处理需要登录的页面；**仅支持用户自行配置的、可公开访问的公司招聘页**。
 - AI 调用通过 **外部 API** 完成，密钥与基址来自 **`.env`**，**仓库内不得硬编码密钥**。
-- 交付形态：可 **Docker Compose** 本地一键起服务（当前 Compose 仍为占位，见下文）。
+- 交付形态：当前 **Docker Compose 只托管 MySQL**；本地开发推荐用 **`scripts/local-up.sh`** 一键启动 MySQL + 宿主机后端 + Vite 前端。
 
 ---
 
@@ -25,8 +25,8 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 | 后端 | Kotlin + Ktor，Gradle | `backend/settings.gradle.kts`，`backend/build.gradle.kts`；入口 `com.careerpilot.ApplicationKt`，`application.conf` 配端口 |
 | 前端 | React 18 + TypeScript + Vite 5 | `frontend/package.json`、`frontend/tsconfig.json`、`frontend/vite.config.ts` |
 | 数据库 | MySQL 8.0（开发可 H2） | `database/schema.sql` / `seed.sql` 已有业务表定义；后端通过 JDBC 读写 |
-| 脚本 | **计划** Python | `scripts/requirements.txt` 占位；自动化待实现 |
-| 部署 | Docker Compose（阶段 1） | **`mysql:8.0` 服务**：持久卷、healthcheck、首次初始化挂载 `database/schema.sql`。后端/前端尚未加入 Compose。 |
+| 脚本 | Python | 已有 API/DB 配置 helpers、follow-up 检查、周报、备份、CSV 导入、job watcher；AI interview planner 仍占位 |
+| 部署 | Docker Compose + 本地脚本 | Compose 目前仅 **`mysql:8.0` 服务**：持久卷、healthcheck、首次初始化挂载 `database/schema.sql` + `seed.sql`；后端/前端通过 `scripts/local-up.sh` 在宿主启动 |
 | 密钥 | `.env`（不提交） | 模板见 `.env.example` |
 
 **Node 提示**：本前端为 **Vite 5**，一般 **Node 18+** 即可；若改用官方最新 `create-vite` 脚手架，可能要求更高 Node 版本，以本机 `node -v` 为准。
@@ -43,17 +43,17 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 
 ## 4. 当前完成进度（随每日收尾滚动更新；下方「最近一次会话交接」记录最新一次）
 
-### 已完成（脚手架）
+### 已完成（基础骨架）
 
 - 目录结构：`backend/`、`frontend/`、`scripts/`、`database/`、`docs/`
-- 后端：Ktor 应用可运行，已提供基础 API 形态（见下方 Day 5/6）
-- 前端：最小页面 `frontend/src/App.tsx`，尚无业务/API 集成（仅展示 `VITE_API_BASE_URL` 占位）
+- 后端：Ktor 应用可运行，已提供认证、领域 CRUD 与 Dashboard 聚合 API（见下方 Day 5+）
+- 前端：React Router + JWT Auth + 受保护 sidebar layout，已接入部分业务 API（Dashboard / Target Companies / Job Leads / Applications / Kanban）
 - 配置：`/.env.example`（MySQL/后端端口/前端 `VITE_API_BASE_URL`/AI 占位）
-- 文档：`README.md`（产品与技术说明）、`docs/architecture.md`（简要架构意图）
+- 文档：`README.md`、`backend/README.md`、`docs/local-setup.md`、`docs/database-schema.md`、`docs/backup-and-restore.md`
 
 ### Day 2 — Docker Compose + MySQL（已完成）
 
-- `docker-compose.yml`：`mysql:8.0`，命名卷 `mysql_data`，主机端口 `${DB_PORT:-3306}:3306`，**healthcheck**（`mysqladmin ping`），首次初始化挂载 `database/schema.sql` → `/docker-entrypoint-initdb.d/01-schema.sql`
+- `docker-compose.yml`：`mysql:8.0`，命名卷 `mysql_data`，主机端口 `${DB_PORT:-3306}:3306`，**healthcheck**（`mysqladmin ping`），首次初始化挂载 `database/schema.sql` → `/docker-entrypoint-initdb.d/01-schema.sql`、`database/seed.sql` → `/docker-entrypoint-initdb.d/02-seed.sql`
 - `database/schema.sql`：占位表 **users, target_companies, job_leads, applications, interviews, ai_interview_plans, prep_tasks, reminders**（`USE \`careerpilot\``，须与 `MYSQL_DATABASE` / `DB_NAME` 一致）
 - `.env.example`：`MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
 
@@ -90,24 +90,70 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 - **`/api/job-leads`**：线索列表/筛选/CRUD、`save-as-application` 等
 - **`/api/dashboard`**（聚合）：`stats`、`follow-ups`、`recent-job-leads`（按 `discovered_at` 降序）、`upcoming-interviews`（按 `scheduled_at` 升序）、`prep-summary`；统计口径与「本周」边界见 **`backend/README.md` → Dashboard**
 
+### Day 11–16 — 前端基础与业务页面（已完成到可用骨架）
+
+- `frontend/src/api/*`：统一 `ApiResponse<T>` 解析、Bearer JWT 注入、401 清 session、按 DTO 定义 `auth` / `dashboard` / `targetCompanies` / `jobLeads` / `applications` API client
+- `frontend/src/context/AuthContext.tsx`：登录、注册、`/api/me` session bootstrap，JWT 存 `localStorage` key `careerpilot_auth_token`
+- 路由：`/login`、`/register`、`/dashboard`、`/target-companies`、`/job-leads`、`/applications`、`/kanban`；`/prep` 与 `/settings` 仍是 placeholder
+- 页面能力：
+  - Dashboard：当前展示 `GET /api/dashboard/stats` 指标网格；其它 dashboard client 已定义但页面 widget 未完全展开
+  - Target Companies：列表、创建、编辑、deactivate/remove、关键词/地点 tag 输入
+  - Job Leads：筛选、详情、手动创建、保存为 application、空状态提示
+  - Applications：筛选、详情、创建、编辑、删除
+  - Kanban：按 application status 分列，支持按钮移动与拖拽改状态
+
+### Day 17–18 — Python 自动化与本地工具（已完成一批）
+
+- `scripts/common/config.py` / `api_client.py` / `db.py`：读取 repo-root `.env`，支持 API token 或脚本账号登录，DB 查询 helper
+- `scripts/check_followups.py`：读取 `/api/dashboard/follow-ups`，生成 `reports/followups_today.md`（支持 `--dry-run`）
+- `scripts/generate_weekly_report.py`：从 MySQL 生成当前/上一周 markdown 周报（支持 `--dry-run`）
+- `scripts/backup_database.py`：Docker Compose 或 host `mysqldump` 逻辑备份，支持 gzip、custom output、dry-run，并在 `docs/backup-and-restore.md` 记录恢复方式
+- `scripts/import_applications_from_csv.py`：CSV 投递导入，经 API 创建 applications，支持 `--dry-run` 与 job_url 去重
+- `scripts/local-up.sh` / `local-down.sh` / `run-backend-with-env.sh`：本地一键启动/停止 MySQL + 后端 + 前端；自动修正本机 `DB_HOST=localhost`、必要时生成本地 `JWT_SECRET`
+- `scripts/install-git-hooks.sh` 与 `scripts/git-hooks/commit-msg`：可安装 repo-local commit-msg hook，剥离 `Co-authored-by` / `Made-with` 等 trailer
+
+### Day 19–22 — Job watcher（已完成可用版，继续增强中）
+
+- `scripts/job_watcher.py`：通过 API 读取 active target companies，默认以 `careers_url` 为 seed 做轻量 HTML crawl；支持 `--dry-run`、`--company-id`、`--mock-html`、`--no-discovery`、`--max-discovery-pages`、`--max-discovery-depth`、`--verbose-discovery`
+- 抓取边界：继续强制跳过 LinkedIn / Indeed / Glassdoor；只处理 http(s) 公开页；允许从公司 seed 域名跳到同组织域名或常见 ATS host（Greenhouse、Lever、SmartRecruiters、Workday 等）
+- 解析能力：普通 `<a>` 链接启发式、JSON-LD `JobPosting`、页面脚本/嵌入文本里的 job URL 与相对路径；按公司 keywords / locations 打分；通过 `/api/job-leads` 创建新线索，并处理重复 URL
+- ATS/API fallback：已支持 Ashby Posting API、Workday CXS、SmartRecruiters API；同时扩展了 Greenhouse、Lever、Jobvite、SuccessFactors、Taleo、Eightfold、Rippling ATS、Pinpoint、Recruiting.com、Oracle 等常见招聘域名识别
+- 当前限制：仍不渲染 JavaScript-only careers site；少数强前端渲染或反爬站点仍可能漏抓；AI interview planner 仍未产品化
+
+### Day 23 — App 内岗位发现与失效链接清理（已完成可用版）
+
+- 后端新增 app-native 操作：
+  - `POST /api/job-leads/discover`：读取用户 active target companies，用 careers URL + keywords/locations 发现岗位并创建 job leads
+  - `POST /api/job-leads/refresh-invalid`：检查现有 job lead URL，删除明确 404/410/closed 的 **unsaved** leads（默认保护 saved leads）
+- 前端 `JobLeadsPage` 新增普通用户可用按钮：
+  - **Find jobs**：无需终端、无需脚本 token，直接扫描所选公司或全部 active companies
+  - **Remove closed links**：检查当前所选公司或全部 leads，清理明确失效的 unsaved links
+- 后端 discovery 与 Python watcher 已同步主要规则：公开 HTML/JSON-LD/脚本 URL、ATS API fallback、静态资源过滤、泛导航/福利页过滤、LinkedIn / Indeed / Glassdoor 跳过。
+- 重复链接处理：discovery 写入时遇到已有 `job_leads.url` 唯一索引冲突会计入 `duplicates_skipped`，不会中断整次扫描。
+- 边界：仍不渲染 JavaScript-only careers site；真实命中率取决于目标公司 career page 是否公开、是否暴露 HTML/JSON/API 数据。
+
 ### 未实现 / 仍占位
 
 - **无**后端内置迁移（Flyway/Liquibase）；仍以 **外部** `schema.sql` 初始化为主
 - **`docker-compose.yml`**：当前 **仅 MySQL** 服务；backend/frontend 可用 **`scripts/local-up.sh`** 在宿主启动（见根 `README.md`）
-- **无** Python 抓取/定时等脚本业务逻辑（`scripts/` 仍为占位或最小骨架）
 - **无** AI 提供商真实编排（`.env.example` 预留变量；prep/plan 相关表已存在，产品化调用待实现）
-- **前端**：仍为最小壳；与上述 API 的类型化集成待做（可用 `VITE_API_BASE_URL`）
+- **无**后端 API 级 prep/AI plan 产品流；`/prep` 页面仍为 placeholder
+- **前端 Dashboard** 仍只展示 stats；follow-ups、recent leads、upcoming interviews、prep summary 的 API client 已有，页面 widget 待完善
+- **Settings / 用户偏好** 未实现；`app_settings` 表存在但未产品化
+- **Job discovery** 仍是 HTTP HTML + JSON-LD 方案；JS 渲染站点命中率有限，app-native 版本与 Python 脚本暂未完全合并为同一实现
+- **E2E / 前端测试** 与生产级全容器 Compose 尚未落地
 
 ### 最近一次会话交接（模板：每次收尾覆写本小节）
 
-- **日期**：2026-05-03
-- **本次完成**：将 **`PROJECT_CONTEXT.md` 与代码对齐**：补充 **Dashboard** 与既有领域 API 进度说明；修正 §6 中已过期的 **`/api/scaffold`** 引用为 **`GET /health`** / **`GET /api/version`**
+- **日期**：2026-05-08
+- **本次完成**：按当前 Day 22/23 代码状态同步 **`PROJECT_CONTEXT.md`**；新增 app-native Job Leads 操作，把“终端跑 `scripts.job_watcher`”包装为前端 **Find jobs** 按钮，并新增 **Remove closed links** 清理明确失效的 unsaved leads；增强 Python watcher 与后端 discovery 的泛用性，支持 HTML/JSON-LD/嵌入脚本 URL 与 Ashby/Workday/SmartRecruiters API fallback；修复 discovery 命中数据库全局重复 URL 时 500 的问题，改为 `duplicates_skipped`；清理被误跟踪的 `scripts/__pycache__` bytecode。
 - **未完成 / 阻塞**：
   - 宿主机跑后端时 `DB_HOST=localhost` vs 容器内 `mysql` 主机名仍易混（见 `docs/local-setup.md` / `.env.example`）
-  - 前端未接业务 API；E2E 与生产 Compose 一体化视需求推进
-- **关键路径 / 涉及文件**：`PROJECT_CONTEXT.md`、`backend/README.md`、`backend/src/main/kotlin/com/careerpilot/Application.kt`、`backend/src/main/kotlin/com/careerpilot/dashboard/*`、`backend/src/test/kotlin/com/careerpilot/ScaffoldTest.kt`
-- **已运行验证**：后端 **`./gradlew test`**（含 dashboard 聚合与空数据断言）；细节以本机最后一次成功为准
-- **给下一对话的一句话**：若要接首页/仪表盘，读 `backend/README.md` 的 Dashboard 与各 `/api/*` 契约，并在 `frontend/` 做类型化 client 与路由。
+  - JavaScript-only careers site 仍未接浏览器渲染引擎，少数强前端渲染站点可能漏抓
+  - AI prep 产品流、settings、dashboard 完整 widgets、E2E 与生产 Compose 一体化仍待推进
+- **关键路径 / 涉及文件**：`PROJECT_CONTEXT.md`、`backend/README.md`、`backend/src/main/kotlin/com/careerpilot/Application.kt`、`backend/src/main/kotlin/com/careerpilot/jobleads/JobLeadDiscovery*`、`frontend/src/api/jobLeads.ts`、`frontend/src/types/jobLead.ts`、`frontend/src/pages/JobLeadsPage.tsx`、`frontend/src/styles/global.css`
+- **已运行验证**：后端 `./gradlew test` 通过；前端 `npm run typecheck` 通过；`python -m py_compile scripts/job_watcher.py` 通过；真实链接 smoke test 覆盖 Ashby、NVIDIA Workday、Stripe、OpenAI careers；本地 API smoke 覆盖 register、target company create、`/api/job-leads/discover`、重复 URL skip、`/api/job-leads/refresh-invalid`。
+- **给下一对话的一句话**：Job Leads 页面现在已有 Find jobs / Remove closed links；Python watcher 与 app-native discovery 已支持常见公开 career pages 和部分 ATS API fallback，下一步可补 fixture/E2E 或继续完善 JS-rendered site 支持。
 
 ---
 
@@ -141,7 +187,7 @@ npm install
 npm run typecheck
 ```
 
-**手工看后端是否起来**（若已 `gradle run` 且端口与 `application.conf` 一致）：访问 **`GET /health`** 或 **`GET /api/version`**（仓库中已无 `/api/scaffold`；前端 `App.tsx` 里的 scaffold 文案为历史占位，待接真实 API 时改掉）。
+**手工看后端是否起来**（若已 `gradle run` 且端口与 `application.conf` 一致）：访问 **`GET /health`** 或 **`GET /api/version`**（仓库中已无 `/api/scaffold`）。
 
 **MySQL（Docker Compose）**：
 
@@ -152,17 +198,34 @@ docker compose up -d
 docker compose exec mysql mysql -u careerpilot -pcareerpilot_password careerpilot -e "SHOW TABLES;"
 ```
 
+**本地一键启动（推荐）**：
+
+```bash
+cd careerpilot-local
+./scripts/local-up.sh
+```
+
+**脚本 smoke test 示例**：
+
+```bash
+cd careerpilot-local
+python -m scripts.job_watcher --dry-run --mock-html scripts/examples/mock_careers_page.html
+python -m scripts.check_followups --dry-run
+python -m scripts.generate_weekly_report --dry-run
+```
+
 ---
 
 ## 7. 建议的下一步任务（可按优先级推进）
 
 以下顺序可按产品节奏调整，供新对话直接 pick：
 
-1. **前端**：登录/注册、`VITE_API_BASE_URL`、统一 `ApiResponse` 解析；首屏或仪表盘消费 **`/api/dashboard/*`** 与 **`/api/applications`** 等。
-2. **Compose（可选）**：将 `backend`（及后续 `frontend`）写入 `docker-compose.yml`，与 MySQL 网络/health 对齐；文档区分宿主机跑后端 vs 全容器。
-3. **迁移（可选）**：引入 Flyway/Liquibase，与现有 `schema.sql` 初始化策略衔接。
-4. **Python**：公开职业页拉取/解析 CLI，`--dry-run`，禁止域名列表与登录站策略落地。
-5. **AI**：`AI_MODE=mock|real`、mock 固定结构、real 走 `.env` 中的 HTTP/提供商配置；与 `ai_interview_plans` / prep 流程产品化对接。
+1. **Job discovery 质量**：补 fixture/E2E，统一 Python watcher 与 app-native discovery 的规则；确认 crawl、JSON-LD、ATS 跳转、duplicate handling、closed-link cleanup 可重复。
+2. **前端 Dashboard**：把已存在的 `/api/dashboard/follow-ups`、`recent-job-leads`、`upcoming-interviews`、`prep-summary` client 接到页面 widgets。
+3. **AI / Prep**：实现 `AI_MODE=mock|real` 的后端或脚本编排，mock 固定结构，real 走 `.env` 中 HTTP/提供商配置；落到 `ai_interview_plans` / `prep_tasks` 并接 `/prep` 页面。
+4. **Compose（可选）**：将 `backend`（及后续 `frontend`）写入 `docker-compose.yml`，与 MySQL 网络/health 对齐；文档区分宿主机跑后端 vs 全容器。
+5. **迁移（可选）**：引入 Flyway/Liquibase，与现有 `schema.sql` 初始化策略衔接。
+6. **测试**：补前端单测/E2E 或最小 Playwright smoke；后端继续扩展 repository/route 测试；scripts 补 fixture-based smoke。
 
 ---
 

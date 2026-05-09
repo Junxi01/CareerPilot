@@ -61,6 +61,8 @@ export function JobLeadsPage() {
 
   const [savingAsApp, setSavingAsApp] = useState(false)
   const [saveAsAppMsg, setSaveAsAppMsg] = useState<string | null>(null)
+  const [automationRunning, setAutomationRunning] = useState<'discover' | 'refresh' | null>(null)
+  const [automationMsg, setAutomationMsg] = useState<string | null>(null)
 
   // Manual create form (for testing)
   const [createOpen, setCreateOpen] = useState(false)
@@ -299,6 +301,63 @@ export function JobLeadsPage() {
     }
   }
 
+  function selectedCompanyIdOrNull(): number | null {
+    const raw = companyId.trim()
+    if (!raw) return null
+    const id = Number(raw)
+    return Number.isFinite(id) ? id : null
+  }
+
+  async function onDiscoverJobs(): Promise<void> {
+    setAutomationRunning('discover')
+    setAutomationMsg(null)
+    setError(null)
+    try {
+      const selectedCompany = selectedCompanyIdOrNull()
+      const minParsed = parseNum(minScore)
+      const res = await jlApi.discoverJobLeads({
+        company_id: selectedCompany,
+        min_match_score: minParsed ?? 0,
+        max_pages_per_company: 8,
+        max_depth: 2,
+      })
+      setAutomationMsg(
+        `Search finished: scanned ${res.companies_scanned} company page(s), found ${res.leads_found} possible job(s), added ${res.leads_created}. ${res.duplicates_skipped} duplicate(s), ${res.low_score_skipped} below score, ${res.fetch_errors} page fetch issue(s).`,
+      )
+      await reloadFiltersAndLeads()
+      if (res.created_items.length > 0) await loadDetail(res.created_items[0]!.id)
+    } catch (e) {
+      const msg = e instanceof ApiClientError ? e.message : 'Failed to search company career pages.'
+      setAutomationMsg(msg)
+    } finally {
+      setAutomationRunning(null)
+    }
+  }
+
+  async function onRefreshInvalidLinks(): Promise<void> {
+    setAutomationRunning('refresh')
+    setAutomationMsg(null)
+    setError(null)
+    try {
+      const selectedCompany = selectedCompanyIdOrNull()
+      const res = await jlApi.refreshInvalidJobLeads({
+        company_id: selectedCompany,
+        delete_saved: false,
+      })
+      setAutomationMsg(
+        `Link refresh finished: checked ${res.checked}, removed ${res.deleted} closed/invalid link(s), kept ${res.kept}. ${res.skipped_saved} saved lead(s) were protected, ${res.uncertain} link(s) were left alone because the site response was unclear.`,
+      )
+      await reloadFiltersAndLeads()
+      setDetail((d) => (d && res.deleted_items.some((x) => x.id === d.id) ? null : d))
+      setSelectedId((id) => (id != null && res.deleted_items.some((x) => x.id === id) ? null : id))
+    } catch (e) {
+      const msg = e instanceof ApiClientError ? e.message : 'Failed to refresh job links.'
+      setAutomationMsg(msg)
+    } finally {
+      setAutomationRunning(null)
+    }
+  }
+
   function resetCreateForm() {
     setCreateError(null)
     setCreateFields({
@@ -353,15 +412,55 @@ export function JobLeadsPage() {
     <div>
       <h1 className="cp-page-title">Job leads</h1>
       <p className="cp-muted">
-        Browse and triage leads. The <strong>Company</strong> filter is built from your{' '}
-        <Link to="/target-companies">Target companies</Link> (same records in the backend: every lead has a{' '}
-        <code>company_id</code> that points at one of those rows). <strong>Keyword</strong> narrows within the
-        selected company and looks at each <em>job lead’s</em> text (title, URL, description, that lead’s matched
-        keywords)—not the company’s careers URL or the keyword lists you typed on the Target company form, unless we
-        extend search to those later.
+        Add companies and career page URLs in <Link to="/target-companies">Target companies</Link>, then use this page
+        to find matching jobs and keep saved links fresh.
       </p>
 
       {error ? <ErrorMessage message={error} onDismiss={() => setError(null)} /> : null}
+      {automationMsg ? (
+        <div className="cp-info">
+          <span>{automationMsg}</span>
+          <button type="button" onClick={() => setAutomationMsg(null)}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+
+      <div className="cp-card" style={{ marginBottom: '1rem' }}>
+        <div className="cp-card__header">
+          <div>
+            <div className="cp-card__title">Find jobs from your target companies</div>
+            <div className="cp-help">
+              Uses each active company’s career page URL, keywords, and locations. If you select a company below, the
+              search runs only for that company; otherwise it scans all active companies.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="cp-btn cp-btn--primary"
+              onClick={() => void onDiscoverJobs()}
+              disabled={automationRunning !== null || activeCompaniesOnly.length === 0}
+              title="Search active company career pages and add matching jobs to this list."
+            >
+              {automationRunning === 'discover' ? 'Finding jobs…' : 'Find jobs'}
+            </button>
+            <button
+              type="button"
+              className="cp-btn cp-btn--subtle"
+              onClick={() => void onRefreshInvalidLinks()}
+              disabled={automationRunning !== null || baseline.length === 0}
+              title="Check existing unsaved leads and remove links that are clearly closed or invalid."
+            >
+              {automationRunning === 'refresh' ? 'Checking links…' : 'Remove closed links'}
+            </button>
+          </div>
+        </div>
+        <div className="cp-help">
+          Closed-link cleanup only deletes unsaved leads when a site clearly says 404/410 or the posting is closed.
+          Saved applications are protected.
+        </div>
+      </div>
 
       <div className="cp-card" style={{ marginBottom: '1rem' }}>
         <div className="cp-card__header">
@@ -699,4 +798,3 @@ export function JobLeadsPage() {
     </div>
   )
 }
-

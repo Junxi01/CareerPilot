@@ -13,7 +13,10 @@ import com.careerpilot.targetcompanies.PatchTargetCompanyRequest
 import com.careerpilot.jobleads.JobLeadRepository
 import com.careerpilot.jobleads.JobLeadValidation
 import com.careerpilot.jobleads.CreateJobLeadRequest
+import com.careerpilot.jobleads.DiscoverJobLeadsRequest
+import com.careerpilot.jobleads.JobLeadDiscoveryService
 import com.careerpilot.jobleads.PatchJobLeadRequest
+import com.careerpilot.jobleads.RefreshInvalidJobLeadsRequest
 import com.careerpilot.jobleads.InsertResult
 import com.careerpilot.jobleads.UpdateResult
 import com.careerpilot.applications.ApplicationRepository
@@ -96,6 +99,7 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
     val userRepo = UserRepository(db)
     val targetCompanies = TargetCompanyRepository(db)
     val jobLeads = JobLeadRepository(db)
+    val jobLeadDiscovery = JobLeadDiscoveryService(targetCompanies, jobLeads)
     val applications = ApplicationRepository(db, jobLeads)
     val interviews = InterviewRepository(db, applications)
     val reminders = ReminderRepository(db, applications)
@@ -630,6 +634,30 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                                 savedToApplications = savedToApplications,
                             ).map { it.toDto() }
                     call.respond(ApiResponse.ok(items))
+                }
+
+                post("discover") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val req =
+                        try {
+                            call.receive<DiscoverJobLeadsRequest>()
+                        } catch (_: SerializationException) {
+                            DiscoverJobLeadsRequest()
+                        }
+                    call.respond(ApiResponse.ok(jobLeadDiscovery.discover(userId, req)))
+                }
+
+                post("refresh-invalid") {
+                    val principal = call.principal<JWTPrincipal>()!!
+                    val userId = principal.payload.subject!!.toLong()
+                    val req =
+                        try {
+                            call.receive<RefreshInvalidJobLeadsRequest>()
+                        } catch (_: SerializationException) {
+                            RefreshInvalidJobLeadsRequest()
+                        }
+                    call.respond(ApiResponse.ok(jobLeadDiscovery.refreshInvalid(userId, req)))
                 }
 
                 post {

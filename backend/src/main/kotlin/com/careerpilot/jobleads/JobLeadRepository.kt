@@ -5,6 +5,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.sql.Connection
+import java.sql.SQLIntegrityConstraintViolationException
 import java.sql.Statement
 import java.sql.Timestamp
 import java.time.Instant
@@ -171,7 +172,16 @@ class JobLeadRepository(private val db: DatabaseModule) {
                 if (matchScore == null) ps.setNull(7, java.sql.Types.DECIMAL) else ps.setDouble(7, matchScore)
                 ps.setTimestamp(8, Timestamp.from(Instant.parse(discoveredAtIso)))
                 ps.setBoolean(9, savedToApplications)
-                ps.executeUpdate()
+                try {
+                    ps.executeUpdate()
+                } catch (e: SQLIntegrityConstraintViolationException) {
+                    if (e.message?.contains("job_leads", ignoreCase = true) == true ||
+                        e.message?.contains("url", ignoreCase = true) == true
+                    ) {
+                        return InsertResult.DuplicateJobUrl
+                    }
+                    throw e
+                }
                 ps.generatedKeys.use { keys ->
                     if (!keys.next()) error("Insert job lead: missing generated key")
                     val id = keys.getLong(1)
@@ -371,4 +381,3 @@ sealed class UpdateResult {
 }
 
 private val StringListSerializer = ListSerializer(String.serializer())
-

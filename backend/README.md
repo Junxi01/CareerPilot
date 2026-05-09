@@ -72,6 +72,8 @@ All endpoints require `Authorization: Bearer <token>` and are scoped to job lead
 
 - `GET /api/job-leads` (filters: `company_id`, `keyword`, `min_match_score`, `saved_to_applications`)
 - `POST /api/job-leads`
+- `POST /api/job-leads/discover` — app-native career-page discovery for active target companies; optional body: `company_id`, `min_match_score`, `max_pages_per_company`, `max_depth`
+- `POST /api/job-leads/refresh-invalid` — checks existing job lead URLs and deletes unsaved leads that are clearly closed/invalid; optional body: `company_id`, `delete_saved`
 - `GET /api/job-leads/{id}`
 - `PATCH /api/job-leads/{id}`
 - `DELETE /api/job-leads/{id}`
@@ -80,6 +82,10 @@ Notes:
 
 - Duplicate prevention: `job_url` is unique **per user** (enforced at the API/repository level).
 - `matched_keywords` is stored as JSON (MySQL `JSON` column; H2 tests use `TEXT` with the same JSON encoding).
+- Discovery is intentionally conservative: it only uses public HTTP(S) pages, skips LinkedIn/Indeed/Glassdoor, follows same-organization and common ATS links, extracts regular anchors, JSON-LD `JobPosting`, and embedded job URLs from page scripts, and does **not** render JavaScript-only career sites.
+- Discovery also includes API fallbacks for common public ATS boards where possible, currently including Ashby, Workday CXS, and SmartRecruiters.
+- Discovery treats existing job URLs as duplicates and skips them instead of failing the whole scan.
+- Invalid-link refresh protects saved leads by default; pass `delete_saved=true` only if you explicitly want saved job leads eligible for deletion too.
 
 ### Applications API (Day 9)
 
@@ -178,4 +184,3 @@ Then:
 ```bash
 curl -i http://localhost:8080/health/db
 ```
-

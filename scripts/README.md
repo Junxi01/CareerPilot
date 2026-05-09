@@ -83,15 +83,24 @@ python -m scripts.import_applications_from_csv --dry-run ./applications.csv
 python -m scripts.import_applications_from_csv ./applications.csv
 ```
 
-Job watcher (public career pages only — excludes LinkedIn/Indeed/Glassdoor):
+Job watcher (configured URL as **seed**; by default follows high-scoring same-org + common ATS links; excludes LinkedIn/Indeed/Glassdoor):
 
 ```bash
 python -m scripts.job_watcher --help
 python -m scripts.job_watcher --dry-run
 python -m scripts.job_watcher --dry-run --company-id 1
+# Single-page mode (legacy: only careers_url HTML, no crawling):
+python -m scripts.job_watcher --no-discovery --dry-run
+# Verbosity while crawling brand / hub pages toward job search:
+python -m scripts.job_watcher --dry-run --verbose-discovery
+python -m scripts.job_watcher --dry-run --max-discovery-pages 8 --max-discovery-depth 3
 # Parser smoke test against bundled HTML fixture (still calls API for companies/leads metadata):
 python -m scripts.job_watcher --dry-run --mock-html scripts/examples/mock_careers_page.html
 ```
+
+The watcher understands regular career-page links, JSON-LD `JobPosting`, embedded job URLs in page scripts, and public ATS API fallbacks for Ashby, Workday CXS, and SmartRecruiters.
+
+**Limits:** Truly JavaScript-rendered careers sites are still hit-or-miss without a browser engine; this script only uses public HTTP HTML/JSON/API responses.
 
 Placeholders:
 
