@@ -1,0 +1,17 @@
+.git
+.cursor
+**/.gradle
+**/.kotlin
+**/.gradle-local
+**/.gradle-user-home
+backend/backend
+**/build
+**/node_modules
+**/dist
+.env
+.env.*
+!.env.example
+.logs
+**/__pycache__
+**/*.pyc
+reports

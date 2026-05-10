@@ -9,6 +9,35 @@ cd careerpilot-local
 
 依赖：**Docker**、**JDK 21**、**Node 18+**（以及通常自带的 **openssl**）。脚本会：创建/修补 `.env`（含随机 `JWT_SECRET`）、`docker compose up` MySQL、后台启动后端、前台启动 Vite。停止：`Ctrl+C` 或 `./scripts/local-down.sh`。
 
+### Docker Compose（全栈：`mysql` + `backend` + `frontend`）
+
+仅依赖 **Docker**（含 Compose v2）。会构建 **`backend/Dockerfile`** 与 **`frontend/Dockerfile`** 镜像。
+
+```bash
+cd careerpilot-local
+cp .env.example .env
+# 编辑 .env：设置 JWT_SECRET（如 openssl rand -hex 32），勿用空值或以 change-me 开头
+docker compose up --build -d
+```
+
+- 前端：**http://localhost:3000**（环境变量 **`FRONTEND_PORT`**，默认 3000 → 容器内 nginx **80**）
+- API：**http://localhost:8080**（**`BACKEND_PORT`** 映射到容器内 API **8080**）
+- MySQL：`localhost` + **`DB_PORT`**（默认 **3306**）
+
+查看状态：`docker compose ps`（`mysql` / `backend` / `frontend` 在就绪后均为 **healthy**；首次构建可能需数分钟）。
+查看日志：`docker compose logs -f backend frontend mysql`。
+
+验证：
+
+```bash
+curl -s http://localhost:8080/health
+curl -s http://localhost:3000/health
+```
+
+停止：`docker compose down`。仅删库重搭（会清空数据）：`docker compose down -v`。
+
+**Python 脚本**（`scripts/*.py`）建议仍在**宿主机**执行：`.env` 中 **`DB_HOST=localhost`**、**`DB_PORT`** 与 Compose 暴露端口一致，API 使用 **`http://localhost:8080`**；也可自行用 `docker run` 挂载仓库与 `.env`，项目不强制自带 `scripts` 服务镜像。
+
 ---
 
 在「本机运行后端 + 前端，MySQL 用 Docker」的标准形态下，也可按下面步骤手动执行。

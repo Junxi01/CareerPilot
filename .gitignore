@@ -1,5 +1,6 @@
 backend/build/
 backend/.gradle/
+backend/.kotlin/
 backend/.gradle-user-home/
 backend/.gradle-local/
 backend/backend/.gradle-local/

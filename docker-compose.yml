@@ -30,6 +30,73 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
+      start_period: 25s
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: careerpilot-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Compose network: DB hostname is the mysql service (overrides DB_HOST=localhost from .env).
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${MYSQL_DATABASE}
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      BACKEND_PORT: "8080"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-careerpilot-local}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-careerpilot-local}
+      JWT_REALM: ${JWT_REALM:-careerpilot}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-604800}
+      APP_NAME: ${APP_NAME:-careerpilot-backend}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      AI_MODE: ${AI_MODE:-mock}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_API_BASE_URL: ${AI_API_BASE_URL:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      GEMINI_API_BASE_URL: ${GEMINI_API_BASE_URL:-}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 65s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+    container_name: careerpilot-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1/health",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 5
       start_period: 20s
 
 volumes:

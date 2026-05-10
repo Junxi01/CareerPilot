@@ -30,6 +30,10 @@ gradle run
 
 By default it listens on port **8080**.
 
+### Docker image
+
+From the **repository root** (`careerpilot-local/`), the Compose file builds this service via **`backend/Dockerfile`** (`gradle installDist` → `eclipse-temurin:21-jre-alpine`). The container listens on **8080** and exposes **`GET /health`** for health checks.
+
 ### Manual verification
 
 ```bash
@@ -51,6 +55,10 @@ curl -s http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com","password":"password123","displayName":"You"}'
 ```
+
+### Settings / deployment status (Day 27)
+
+- `GET /api/settings/status` (requires `Authorization: Bearer <token>`) — Returns **`app_name`**, **`app_version`**, **`db_status`** (`connected` \| `down`), optional **`db_error`** (short code when down), **`ai_provider`** (from server **`AI_PROVIDER`** / **`AI_MODE`**, for scripts), **`openai_api_key_configured`**, **`gemini_api_key_configured`**, **`ai_model`** (from **`AI_MODEL`** or **`GEMINI_MODEL`**). Does **not** return API keys or any secret strings. Privacy and `.env` variables: **`docs/ai-setup.md`**.
 
 ### Target companies API (Day 7)
 
@@ -140,6 +148,14 @@ Requires `Authorization: Bearer <token>`. Plans are stored per **application** (
 - `GET /api/prep/tasks` — optional query: `application_id`, `status`.
 - `GET /api/prep/tasks/today` — due today (server-local calendar date), `status <> done`.
 - `PATCH /api/prep/tasks/{id}/complete` — marks task `done`.
+
+### Settings status (Day 27)
+
+Requires `Authorization: Bearer <token>`. Returns **safe deployment metadata** only (no secrets).
+
+- `GET /api/settings/status` — `app_name`, `app_version`, `db_status` (`connected` \| `down`), optional `db_error` (sanitized code), `ai_provider` (from `AI_PROVIDER` / `AI_MODE` on the **server** process), `openai_api_key_configured`, `gemini_api_key_configured`, optional `ai_model`. Never returns API key material.
+
+The JVM backend does not invoke OpenAI/Gemini for product APIs by default; fields mirror **`.env`** for operators and for Python scripts. See **`docs/ai-setup.md`**.
 
 ### Dashboard (aggregated)
 

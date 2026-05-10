@@ -148,9 +148,12 @@ class JobLeadRepository(private val db: DatabaseModule) {
     ): InsertResult {
         // Ensure company belongs to user
         val companyName = companyNameForUser(userId, companyId) ?: return InsertResult.CompanyNotFound
+        val normalizedTitle = roleTitle.trim().take(255).ifBlank { "Untitled role" }
+        val normalizedUrl = jobUrl.trim().take(2048)
+        val normalizedLocation = location?.trim()?.take(255)?.takeIf { it.isNotBlank() }
 
         // De-dupe by job_url per user (across all of user's companies)
-        if (existsByJobUrl(userId, jobUrl)) return InsertResult.DuplicateJobUrl
+        if (existsByJobUrl(userId, normalizedUrl)) return InsertResult.DuplicateJobUrl
 
         db.openConnection().use { conn ->
             conn.prepareStatement(
@@ -164,9 +167,9 @@ class JobLeadRepository(private val db: DatabaseModule) {
                 Statement.RETURN_GENERATED_KEYS,
             ).use { ps ->
                 ps.setLong(1, companyId)
-                ps.setString(2, roleTitle)
-                ps.setString(3, jobUrl)
-                ps.setString(4, location)
+                ps.setString(2, normalizedTitle)
+                ps.setString(3, normalizedUrl)
+                ps.setString(4, normalizedLocation)
                 ps.setString(5, rawDescription)
                 ps.setString(6, encodeStringList(matchedKeywords))
                 if (matchScore == null) ps.setNull(7, java.sql.Types.DECIMAL) else ps.setDouble(7, matchScore)
@@ -190,9 +193,9 @@ class JobLeadRepository(private val db: DatabaseModule) {
                             id = id,
                             companyId = companyId,
                             companyName = companyName,
-                            roleTitle = roleTitle,
-                            jobUrl = jobUrl,
-                            location = location,
+                            roleTitle = normalizedTitle,
+                            jobUrl = normalizedUrl,
+                            location = normalizedLocation,
                             rawDescription = rawDescription,
                             matchedKeywords = matchedKeywords,
                             matchScore = matchScore,
@@ -222,11 +225,11 @@ class JobLeadRepository(private val db: DatabaseModule) {
             binders += { ps, idx -> binder(ps, idx, value); idx + 1 }
         }
 
-        set("title", patch.roleTitle) { ps, i, v -> ps.setString(i, v) }
-        set("url", patch.jobUrl) { ps, i, v -> ps.setString(i, v) }
+        set("title", patch.roleTitle?.take(255)) { ps, i, v -> ps.setString(i, v) }
+        set("url", patch.jobUrl?.take(2048)) { ps, i, v -> ps.setString(i, v) }
         if (patch.location != null) {
             setClauses += "location = ?"
-            binders += { ps, idx -> ps.setString(idx, patch.location); idx + 1 }
+            binders += { ps, idx -> ps.setString(idx, patch.location.take(255)); idx + 1 }
         }
         if (patch.rawDescription != null) {
             setClauses += "raw_description = ?"

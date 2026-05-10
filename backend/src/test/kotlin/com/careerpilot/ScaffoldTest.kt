@@ -146,6 +146,17 @@ class ScaffoldTest {
         }
         assertEquals(HttpStatusCode.OK, me.status)
         assertTrue(me.bodyAsText().contains("\"email\":\"a@b.com\""))
+
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/settings/status").status)
+
+        val settings = client.get("/api/settings/status") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+        assertEquals(HttpStatusCode.OK, settings.status)
+        val settingsBody = settings.bodyAsText()
+        assertTrue(settingsBody.contains("\"db_status\":\"connected\""))
+        assertTrue(settingsBody.contains("\"ai_provider\":\"mock\""))
+        assertTrue(settingsBody.contains("\"openai_api_key_configured\":false"))
     }
 
     @Test
@@ -474,6 +485,29 @@ class ScaffoldTest {
         }
         assertEquals(HttpStatusCode.Created, createBackendOnly.status)
         val leadBackendId = parseLeadId(createBackendOnly.bodyAsText())
+
+        val longTitle = "Senior Backend Engineer " + "X".repeat(300)
+        val createLongTitle = client.post("/api/job-leads") {
+            header(HttpHeaders.Authorization, "Bearer $tokenA")
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "company_id": $companyAId,
+                  "role_title":"$longTitle",
+                  "job_url":"https://jobs.example.com/long-title-slot",
+                  "matched_keywords":["backend"],
+                  "saved_to_applications": false
+                }
+                """.trimIndent(),
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createLongTitle.status)
+        val longTitleBody = createLongTitle.bodyAsText()
+        val storedTitle =
+            Regex("\"role_title\"\\s*:\\s*\"([^\"]+)\"").find(longTitleBody)?.groupValues?.get(1)
+                ?: error("Missing role_title: $longTitleBody")
+        assertEquals(255, storedTitle.length)
 
         // Company + keyword: only the backend-keyword row survives
         val listCompanyAndKw =

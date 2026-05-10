@@ -139,6 +139,9 @@ class JobLeadDiscoveryService(
         val listings = mutableListOf<ParsedListing>()
         var fetchErrors = 0
         queue += CrawlTarget(url = normalizeUrl(seedUrl), depth = 0, score = 1000.0)
+        for (guess in careerSeedGuesses(seedUrl)) {
+            queue += CrawlTarget(url = guess, depth = 0, score = 950.0)
+        }
 
         while (queue.isNotEmpty() && seenPages.size < maxPages) {
             val target = queue.poll()
@@ -149,12 +152,16 @@ class JobLeadDiscoveryService(
                 fetchErrors += 1
                 continue
             }
-            for (listing in atsApiListings(pageUrl)) {
+            val apiListings = atsApiListings(pageUrl)
+            for (listing in apiListings) {
                 if (seenJobs.add(listing.url)) listings += listing
             }
-            for (listing in extractListings(fetched, pageUrl, seedUrl)) {
-                if (seenJobs.add(listing.url)) listings += listing
+            if (apiListings.isEmpty()) {
+                for (listing in extractListings(fetched, pageUrl, seedUrl)) {
+                    if (seenJobs.add(listing.url)) listings += listing
+                }
             }
+            if (apiListings.isNotEmpty()) continue
             if (target.depth >= maxDepth) continue
             for (candidate in discoverLinks(fetched, pageUrl, seedUrl).take(120)) {
                 if (candidate.url !in seenPages) queue += candidate.copy(depth = target.depth + 1)
@@ -162,6 +169,24 @@ class JobLeadDiscoveryService(
         }
 
         return CrawlResult(listings = listings, fetchErrors = fetchErrors)
+    }
+
+    private fun careerSeedGuesses(seedUrl: String): List<String> {
+        val base =
+            try {
+                val uri = URI.create(seedUrl)
+                if (uri.scheme != "http" && uri.scheme != "https") return emptyList()
+                "${uri.scheme}://${uri.host}"
+            } catch (_: Throwable) {
+                return emptyList()
+            }
+        return listOf(
+            "$base/careers/jobs/",
+            "$base/careers/",
+            "$base/jobs/",
+            "$base/company/careers/",
+            "$base/career/",
+        )
     }
 
     private fun fetchHtml(url: String): String? {
@@ -228,6 +253,7 @@ class JobLeadDiscoveryService(
         val host = uri.host?.lowercase().orEmpty()
         return when {
             host == "jobs.ashbyhq.com" || host.endsWith(".ashbyhq.com") -> ashbyListings(uri)
+            host.endsWith("greenhouse.io") -> greenhouseListings(uri)
             host.endsWith("myworkdayjobs.com") -> workdayListings(uri)
             host == "jobs.smartrecruiters.com" || host == "careers.smartrecruiters.com" -> smartRecruitersListings(uri)
             else -> emptyList()
@@ -250,6 +276,30 @@ class JobLeadDiscoveryService(
                     ?: return@mapNotNull null
             val location = jsonString(obj["location"]).orEmpty()
             ParsedListing(title = title, url = normalizeUrl(url), snippet = cleanText("$title $location"))
+        }
+    }
+
+    private fun greenhouseListings(uri: URI): List<ParsedListing> {
+        val board = uri.path.trim('/').split('/').firstOrNull()?.takeIf { it.isNotBlank() } ?: return emptyList()
+        val root = fetchJson("https://boards-api.greenhouse.io/v1/boards/$board/jobs?content=true") as? JsonObject
+            ?: return emptyList()
+        val jobs = root["jobs"] as? JsonArray ?: return emptyList()
+        return jobs.mapNotNull { el ->
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            val title = jsonString(obj["title"]) ?: return@mapNotNull null
+            val url = jsonString(obj["absolute_url"]) ?: jsonString(obj["url"]) ?: return@mapNotNull null
+            val location = (obj["location"] as? JsonObject)?.let { jsonString(it["name"]) }.orEmpty()
+            val departments =
+                (obj["departments"] as? JsonArray)
+                    ?.mapNotNull { dep -> (dep as? JsonObject)?.let { jsonString(it["name"]) } }
+                    ?.joinToString(" ")
+                    .orEmpty()
+            val content = jsonString(obj["content"]).orEmpty()
+            ParsedListing(
+                title = title,
+                url = normalizeUrl(url),
+                snippet = cleanText("$title $location $departments $content").take(2000),
+            )
         }
     }
 
@@ -714,7 +764,21 @@ private val GenericNavLabels =
     )
 private val GenericNavPaths = setOf("career", "careers", "jobs", "company/careers", "about/careers")
 private val BlockedHostSuffixes =
-    setOf("linkedin.com", "indeed.com", "glassdoor.com", "glassdoor.co.uk", "glassdoor.ie", "glassdoor.de", "glassdoor.fr")
+    setOf(
+        "linkedin.com",
+        "indeed.com",
+        "glassdoor.com",
+        "glassdoor.co.uk",
+        "glassdoor.ie",
+        "glassdoor.de",
+        "glassdoor.fr",
+        "api-geocode-earth-proxy.greenhouse.io",
+        "boards.eu.greenhouse.io",
+        "email-address-validator.eu.greenhouse.io",
+        "job-boards.cdn.greenhouse.io",
+        "my.greenhouse.io",
+        "s101-recruiting.cdn.greenhouse.io",
+    )
 private val AtsHostSuffixes =
     setOf(
         "greenhouse.io",

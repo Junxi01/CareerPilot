@@ -13,6 +13,7 @@ import { JobLeadsPage } from './pages/JobLeadsPage'
 import { ApplicationsPage } from './pages/ApplicationsPage'
 import { KanbanPage } from './pages/KanbanPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 export function App() {
   return (
@@ -37,7 +38,7 @@ export function App() {
                 path="/prep"
                 element={<PlaceholderPage title="Interview prep" description="Prep tasks tied to interview plans will show here." />}
               />
-              <Route path="/settings" element={<PlaceholderPage title="Settings" description="Account and preferences (API pending)." />} />
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>
 

@@ -39,6 +39,7 @@ import com.careerpilot.dashboard.DashboardRepository
 import com.careerpilot.dashboard.DashboardUpcomingInterviewsDto
 import com.careerpilot.interviewplans.InterviewPlanRepository
 import com.careerpilot.interviewplans.UpsertInterviewPlanRequest
+import com.careerpilot.settings.buildSettingsStatusDto
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.application.install
@@ -75,6 +76,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import org.slf4j.event.Level
 import java.util.UUID
+import kotlin.runCatching
 
 fun main(args: Array<String>) {
     io.ktor.server.netty.EngineMain.main(args)
@@ -252,6 +254,13 @@ fun Application.moduleWithEnv(env: Map<String, String>) {
                         ApiResponse.fail("unauthorized", "User not found"),
                     )
                 call.respond(ApiResponse.ok(com.careerpilot.auth.MeResponse(user = user.toPublic())))
+            }
+
+            get("/api/settings/status") {
+                val dbResult = runCatching { healthRepo.selectOne() }
+                val dbErr = dbResult.exceptionOrNull()?.let { classifyDbError(it) }
+                val dto = buildSettingsStatusDto(cfg, env, dbResult.isSuccess, dbErr)
+                call.respond(ApiResponse.ok(dto))
             }
 
             route("/api/target-companies") {

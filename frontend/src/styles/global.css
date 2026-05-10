@@ -751,3 +751,62 @@ body {
   word-break: break-word;
   overflow-x: auto;
 }
+
+/* Settings page */
+.cp-settings-dl {
+  margin: 0;
+}
+
+.cp-settings-dl > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr;
+  gap: 0.35rem 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e2e8f0;
+  align-items: baseline;
+}
+
+.cp-settings-dl > div:last-child {
+  border-bottom: none;
+}
+
+.cp-settings-dl dt {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.cp-settings-dl dd {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.cp-settings-ok {
+  color: #166534;
+  font-weight: 600;
+}
+
+.cp-settings-bad {
+  color: #991b1b;
+  font-weight: 600;
+}
+
+.cp-settings-notes {
+  margin: 0;
+  padding-left: 1.15rem;
+  line-height: 1.55;
+  color: #334155;
+}
+
+.cp-settings-notes li {
+  margin-bottom: 0.45rem;
+}
+
+@media (max-width: 520px) {
+  .cp-settings-dl > div {
+    grid-template-columns: 1fr;
+  }
+}
