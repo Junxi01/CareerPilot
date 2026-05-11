@@ -1,8 +1,22 @@
-## Database
+# Database
 
-SQL schema and seed files live here.
+- **`schema.sql`** — canonical MySQL 8 schema (applied on **first** Docker Compose MySQL init via `docker-compose.yml`).
+- **`seed.sql`** — demo user + companies + job leads (runs after schema on same first init).
 
-- `schema.sql`: table definitions (initial baseline). Docker Compose mounts this file to MySQL’s `/docker-entrypoint-initdb.d/` on **first** container init (empty data volume). **`MYSQL_DATABASE` / `DB_NAME` must match** the database name in `schema.sql` (`USE \`careerpilot\`;` by default).
-- `seed.sql`: optional local seed data
+## Demo account (after fresh volume)
 
-Migrations will be added later once the domain model stabilizes.
+| | |
+|--|--|
+| Email | `demo@careerpilot.local` |
+| Password | `demo12345` |
+
+**Security:** for **local demo only**. Change or delete this user in real deployments.
+
+## Reset everything (Compose)
+
+```bash
+docker compose down -v   # removes mysql_data volume — all DB data lost
+docker compose up --build -d
+```
+
+Re-run **`seed.sql`** manually only if you need to refresh demo rows without recreating the volume — see **`docs/demo.md`**.

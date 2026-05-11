@@ -227,7 +227,6 @@ export function JobLeadsPage() {
   useEffect(() => {
     void loadCompanies()
     void loadBaseline()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /** While Manual create is open, keep target company synced with the filter dropdown. */

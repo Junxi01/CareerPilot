@@ -4,12 +4,24 @@
 -- This seed file is safe to re-run manually.
 START TRANSACTION;
 
--- Demo user (upsert)
-INSERT INTO users (email, display_name, timezone)
-VALUES ('demo@careerpilot.local', 'Demo User', 'America/Los_Angeles')
+-- Demo user (upsert). Password: demo12345 — for local demo only; never use in production.
+-- Hash: bcrypt cost 12 (compatible with backend PasswordHasher).
+INSERT INTO users (
+  email,
+  display_name,
+  timezone,
+  password_hash
+)
+VALUES (
+  'demo@careerpilot.local',
+  'Demo User',
+  'America/Los_Angeles',
+  '$2b$12$C6T4Npn333L3.RMhM0N16eoJ2TA30JNj0wXkfUS5XRl4OzC68wgcS'
+)
 ON DUPLICATE KEY UPDATE
   display_name = VALUES(display_name),
   timezone = VALUES(timezone),
+  password_hash = VALUES(password_hash),
   id = LAST_INSERT_ID(id);
 
 SET @demo_user_id = LAST_INSERT_ID();

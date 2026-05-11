@@ -1,143 +1,172 @@
 ## CareerPilot Local
 
-**交接与上下文**：新项目成员或 Cursor 新对话请先读 **`PROJECT_CONTEXT.md`**（目标、栈、进度、约定、下一步）。
+Self-hosted **AI career assistant**: target companies, public career URLs, job leads, applications, interview prep plans, reminders, backups, and weekly reporting. Configure LLM keys and secrets in **`.env`** only (never commit — see **`SECURITY.md`**).
 
-Self-hosted AI career assistant (local-first).
+**License:** [**MIT**](LICENSE).
 
-The goal is a local app where users configure target companies + public career page URLs, and the system tracks job leads, applications, interview prep, reminders, and weekly reporting. AI features will use an **external API provider** configured via `.env` (no hardcoded keys).
+---
 
-### Tech stack
+### Screenshots (placeholders)
 
-- **Backend**: Kotlin + Ktor (Gradle)
-- **Frontend**: React + TypeScript + Vite
-- **Database**: MySQL 8.0 (Docker Compose; schema from `database/schema.sql`)
-- **Automation**: Python scripts (planned)
-- **Deployment**: Docker Compose — **MySQL + backend (Ktor) + frontend (nginx static)**; dev 仍可用 `scripts/local-up.sh` 只起 MySQL + 宿主机前后端
+Screenshots live under **`docs/images/`**. Add PNGs and uncomment or replace the lines below.
 
-### Quick start
+<!--
+![Dashboard](docs/images/readme-dashboard.png)
+![Job leads](docs/images/readme-job-leads.png)
+![Interview plan](docs/images/readme-interview-plan.png)
+-->
 
-#### Option A — Full stack in Docker (Compose)
+<!-- screenshot: Dashboard — `docs/images/readme-dashboard.png` -->
+<!-- screenshot: Job leads — `docs/images/readme-job-leads.png` -->
+<!-- screenshot: Interview plan — `docs/images/readme-interview-plan.png` -->
 
-需要 **Docker**（含 Compose v2）。会 **build** 后端/前端镜像并启动三服务（见根目录 **`docker-compose.yml`**、**`backend/Dockerfile`**、**`frontend/Dockerfile`**）。
+---
+
+### Product boundaries
+
+- **Supported:** user-configured **public** `http(s)` career pages.
+- **Not supported:** LinkedIn / Indeed / Glassdoor automation, login-gated boards, or scraping policy violations.
+
+---
+
+### Prerequisites
+
+| Tool | Role |
+|------|------|
+| **Docker** + Compose v2 | MySQL (and optional full stack) |
+| **JDK 21** | Backend `./gradlew` |
+| **Node.js 18+** (20+ recommended) | Frontend |
+| **Python 3.11+** | Scripts (`pip install -r scripts/requirements.txt`) |
+
+Maintainers / AI assistants: see **`PROJECT_CONTEXT.md`** for architecture and handoff rules.
+
+---
+
+### Quick start (clone → run)
 
 ```bash
+git clone <your-fork-or-upstream-url>
 cd careerpilot-local
 cp .env.example .env
-# 编辑 .env：设置 JWT_SECRET，例如: openssl rand -hex 32
+# Required: set JWT_SECRET (e.g. openssl rand -hex 32). Do not use empty or change-me* values.
+```
+
+**Option A — Full stack in Docker (recommended first run)**
+
+```bash
 docker compose up --build -d
 ```
 
-| 服务 | 默认本机地址 |
-|------|----------------|
-| 前端 (SPA) | **http://localhost:3000**（`FRONTEND_PORT` → 容器内 nginx **80**） |
-| 后端 API | **http://localhost:8080**（`BACKEND_PORT`） |
-| MySQL | `localhost` **3306**（`DB_PORT`） |
+| Service | Default URL |
+|---------|-------------|
+| Web app | **http://localhost:3000** (`FRONTEND_PORT`) |
+| API | **http://localhost:8080** (`BACKEND_PORT`) |
+| MySQL | **localhost:3306** |
 
-检查健康状态：`docker compose ps`（各服务 `healthy` 后可用）。快速探测：`curl -s http://localhost:8080/health` 与 `curl -s http://localhost:3000/health`。
+Health: `curl -s http://localhost:8080/health` · `curl -s http://localhost:3000/health` · `docker compose ps`
 
-查看日志：`docker compose logs -f backend frontend mysql`。
+Stop: `docker compose down`. **Erase DB volume:** `docker compose down -v`.
 
-停止：`docker compose down`。清库重载 schema（**删数据**）：`docker compose down -v`。
-
-**环境变量**：根目录 **`.env.example`** 已说明 Compose 与宿主机跑法的区别（`DB_HOST=localhost` 在「本机跑后端」时仍适用；Compose 为 backend 服务覆盖 **`DB_HOST=mysql`**）。**`VITE_API_BASE_URL`** 在构建前端镜像时写入，默认 **`http://localhost:8080`**，与浏览器经本机访问 API 一致。
-
-**Python 脚本**（`scripts/`）未放入默认 Compose；在**宿主机**用同一 `.env` 跑即可（`DB_HOST=localhost`、API `http://localhost:8080`），见 **`docs/local-setup.md`**。
-
-更细排错与手工分步启动见 **`docs/local-setup.md`**。AI 与隐私见 **`docs/ai-setup.md`**。
-
-#### Option B — Host dev: one script (MySQL in Docker, backend + Vite on host)
-
-需 **Docker、JDK 21、Node**；**`./scripts/local-up.sh`** 会（必要时）补全 **`.env`**、起 MySQL、装 `frontend` 依赖、后台跑 Gradle、前台跑 Vite。
+**Option B — MySQL in Docker, backend + Vite on host**
 
 ```bash
-cd careerpilot-local
 ./scripts/local-up.sh
 ```
 
-浏览器一般为 **http://localhost:5173**；API **http://localhost:8080**。停止：`Ctrl+C` 或 **`./scripts/local-down.sh`**；连 MySQL 停：**`./scripts/local-down.sh --all`**。
+Frontend: **http://localhost:5173** · API: **http://localhost:8080**.
 
-### MySQL only (Compose)
+**First-time database:** Compose applies **`database/schema.sql`** + **`database/seed.sql`** on a **new** volume. Optional login: **`demo@careerpilot.local`** / **`demo12345`** — see **`database/README.md`**.
 
-```bash
-cd careerpilot-local
-cp .env.example .env
-docker compose up -d mysql
-docker compose ps
-```
+---
 
-Verify tables (optional):
+### Demo flow (guided tour)
 
-```bash
-docker compose exec mysql mysql -u careerpilot -pcareerpilot_password careerpilot -e "SHOW TABLES;"
-```
+Step-by-step commands and UI path: **[`docs/demo.md`](docs/demo.md)**.
 
-### Local development goals
+1. Register (or use seeded demo user).
+2. Add a target company (public careers URL).
+3. Run **`job_watcher`** on **`scripts/examples/mock_careers_page.html`**.
+4. Generate an interview plan in **`AI_PROVIDER=mock`**.
+5. Save a job lead as an application.
+6. Update application status (Kanban / Applications).
+7. Run **`generate_weekly_report.py`**.
+8. Run **`backup_database.py`**.
 
-- Run fully locally (self-hosted)
-- No secrets committed (use `.env` / `.env.example`)
-- Clean architecture (clear boundaries; no shortcuts)
-- Typed, consistent API responses (backend) and typed API clients (frontend)
-- AI supports real-provider mode + mock mode for local testing
-- Only support user-configured **public** company career pages (no LinkedIn/Indeed/Glassdoor/login-required sites)
+---
 
-### Backend (current)
+### Documentation
 
-The backend already includes a minimal, working baseline:
+| Doc | Purpose |
+|-----|---------|
+| [`docs/demo.md`](docs/demo.md) | End-to-end demo + reset |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Common errors |
+| [`docs/local-setup.md`](docs/local-setup.md) | Detailed local & Compose setup |
+| [`docs/ai-setup.md`](docs/ai-setup.md) | AI keys, mock mode, privacy |
+| [`docs/interview-plan-api.md`](docs/interview-plan-api.md) | Interview plan REST |
+| [`docs/backup-and-restore.md`](docs/backup-and-restore.md) | Backups |
+| [`docs/database-schema.md`](docs/database-schema.md) | Tables |
+| [`SECURITY.md`](SECURITY.md) | Secrets policy, reporting |
 
-- Health/version:
-  - `GET /health`
-  - `GET /api/version`
-  - `GET /health/db` (returns `503` when DB is unreachable)
-- Auth (JWT):
-  - `POST /api/auth/register`
-  - `POST /api/auth/login`
-  - `GET /api/me` (requires `Authorization: Bearer <token>`)
+---
 
-See `backend/README.md` for run commands and examples.
+### Configuration
 
-### Frontend (current)
+- **`.env.example`** — template only; copy to **`.env`** (gitignored). Scripts also read **`SCRIPTS_EMAIL`** / **`SCRIPTS_PASSWORD`** or **`SCRIPTS_API_TOKEN`** — see `.env.example` tail.
+- **`frontend/.env.example`** — **`VITE_*`** for host dev.
 
-- **React + TypeScript + Vite**, **React Router 6** (`/login`, `/register`, sidebar layout).
-- API base URL: **`VITE_API_BASE_URL`** (see `frontend/.env.example`; default `http://localhost:8080`; baked in at image **build** time for Docker).
-- **JWT** stored in **`localStorage`** under `careerpilot_auth_token`. Shared DTO-oriented types live in `frontend/src/types/` (aligned with Kotlin `ApiResponse` / domain DTOs).
-- **Dev:** `cd frontend && npm install && npm run dev` → **http://localhost:5173** (or `./scripts/local-up.sh`).
-- **Docker Compose:** nginx serves production build at **http://localhost:3000** by default (`FRONTEND_PORT`).
+---
 
-### Git hygiene: keep commits single-author
-
-If you don't want GitHub to show AI/tools (e.g. "Cursor") as contributors, install the repo-local git hook once:
+### Quality checks & CI
 
 ```bash
-cd careerpilot-local
-./scripts/install-git-hooks.sh
+make test    # backend tests + frontend typecheck/lint/build + Python smoke
 ```
 
-This hook strips commit-message trailers like `Co-authored-by:` / `Made-with:` at commit time.
+`make test` creates `scripts/.venv-test` and installs Python test dependencies automatically.
 
-### Folder structure
+GitHub Actions: **`.github/workflows/ci.yml`**.
+
+---
+
+### Tech stack
+
+- **Backend:** Kotlin, Ktor, Gradle, MySQL (H2 in tests)
+- **Frontend:** React 18, TypeScript, Vite
+- **Scripts:** Python (**`scripts/`**)
+- **Deploy:** **`docker-compose.yml`**, **`Makefile`**
+
+---
+
+### Repo layout
 
 ```
 careerpilot-local/
-  PROJECT_CONTEXT.md # 交接文档（给 AI / 同事）
-  .cursor/rules/    # Cursor 规则：每日收尾时更新 PROJECT_CONTEXT.md 等
-  backend/           # Kotlin + Ktor (Gradle)
-  frontend/          # React + TypeScript + Vite
-  scripts/           # Python automation (placeholders)
-  database/          # schema.sql / seed.sql (placeholders)
-  docs/              # architecture notes
-  docker-compose.yml
-  backend/Dockerfile
-  frontend/Dockerfile
+  PROJECT_CONTEXT.md       # maintainer / Cursor handoff (zh + en context)
+  SECURITY.md
+  LICENSE
+  README.md                # this file
   .env.example
-  README.md
+  Makefile
+  docker-compose.yml
+  database/                # schema.sql, seed.sql
+  backend/
+  frontend/
+  scripts/
+  docs/
+  tests/                   # pytest smoke (Day 29)
+  .github/workflows/
 ```
 
-### Planned features
+### Git hygiene (optional)
 
-- Company/career page configuration (public URLs only)
-- Job lead discovery + keyword matching + dedupe
-- Application tracking (status, notes, follow-ups)
-- Interview schedule + prep task planning
-- AI-powered interview preparation plans (real + mock)
-- Reminders + weekly summary reports
-- Database backups and restore flow
+```bash
+./scripts/install-git-hooks.sh
+```
+
+Strips `Co-authored-by:` / `Made-with:` trailers so commits stay single-author if you want.
+
+---
+
+### Roadmap / status
+
+Feature status and backlog: **`PROJECT_CONTEXT.md`** §4–§7.

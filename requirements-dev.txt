@@ -1,0 +1,5 @@
+# Dev / CI extras (pytest, ruff). Runtime deps: scripts/requirements.txt
+-r scripts/requirements.txt
+
+pytest>=8.0
+ruff>=0.8.0

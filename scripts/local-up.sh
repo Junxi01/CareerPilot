@@ -72,17 +72,22 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 echo "Starting MySQL (docker compose) …"
-docker compose -f "${ROOT}/docker-compose.yml" up -d
+docker compose -f "${ROOT}/docker-compose.yml" up -d mysql
+MYSQL_CID="$(docker compose -f "${ROOT}/docker-compose.yml" ps -q mysql)"
+if [[ -z "${MYSQL_CID:-}" ]]; then
+  echo "Could not resolve mysql container id. Check: docker compose ps" >&2
+  exit 1
+fi
 
 echo "Waiting for MySQL to be healthy …"
 for _ in $(seq 1 90); do
-  ST="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' careerpilot-mysql 2>/dev/null || echo unknown)"
+  ST="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$MYSQL_CID" 2>/dev/null || echo unknown)"
   if [[ "$ST" == "healthy" ]]; then
     break
   fi
   sleep 1
 done
-ST="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' careerpilot-mysql 2>/dev/null || echo unknown)"
+ST="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$MYSQL_CID" 2>/dev/null || echo unknown)"
 if [[ "$ST" != "healthy" ]]; then
   echo "MySQL did not become healthy in time. Check: docker compose ps && docker compose logs mysql" >&2
   exit 1

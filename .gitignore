@@ -4,6 +4,8 @@ backend/.kotlin/
 backend/.gradle-user-home/
 backend/.gradle-local/
 backend/backend/.gradle-local/
+scripts/.venv-test/
+
 frontend/node_modules/
 frontend/dist/
 frontend/.env.local
@@ -12,3 +14,20 @@ frontend/.env.local
 .logs/
 .venv/
 backups/
+
+# Generated script output (plans, AI debug dumps); keep folder with .gitkeep
+reports/*
+!reports/.gitkeep
+
+# Editor / OS
+.idea/
+*.swp
+*.log
+*.pem
+
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+coverage/
+htmlcov/

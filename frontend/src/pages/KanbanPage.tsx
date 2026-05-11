@@ -62,7 +62,6 @@ export function KanbanPage() {
 
   useEffect(() => {
     void refresh()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function setStatus(id: number, next: ApplicationStatus): Promise<void> {

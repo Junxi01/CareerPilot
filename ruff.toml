@@ -1,0 +1,9 @@
+# Day 29: lint `tests/` only; scripts are syntax-checked via `compileall`.
+# Scripts use __future__/docstring/import ordering acceptable to Python but noisy for E402.
+target-version = "py311"
+line-length = 120
+extend-exclude = ["scripts"]
+
+[lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E402"]

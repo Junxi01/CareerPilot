@@ -50,6 +50,8 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 - 前端：React Router + JWT Auth + 受保护 sidebar layout，已接入部分业务 API（Dashboard / Target Companies / Job Leads / Applications / Kanban）
 - 配置：`/.env.example`（MySQL/后端端口/前端 `VITE_API_BASE_URL`/AI 占位）
 - 文档：`README.md`、`backend/README.md`、`docs/local-setup.md`、`docs/database-schema.md`、`docs/backup-and-restore.md`、`docs/interview-plan-api.md`（Day 25+）、**`docs/ai-setup.md`**（Day 27+）
+- 质量与 CI：**`Makefile`**、`requirements-dev.txt`、**`tests/`**（pytest）、**`.github/workflows/ci.yml`**（Day 29+）
+- 开源发布：**`LICENSE`**（MIT）、**`SECURITY.md`**、**`docs/demo.md`**、**`docs/troubleshooting.md`**、`docs/images/` 截图占位说明（Day 30+）
 
 ### Day 2 — Docker Compose + MySQL（已完成；全栈扩展见 Day 28）
 
@@ -146,12 +148,29 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 - **脚本**：未默认打包 Python 服务；文档约定 **宿主机**运行 **`scripts/*.py`**（**`docs/local-setup.md`** / **`README.md`**）。
 - **入口**：**`docker compose up --build -d`**；详见 **`README.md` Quick start**、**`.env.example`**。
 
-### Day 19–22 — Job watcher（已完成可用版，继续增强中）
+### Day 29 — 测试、Lint、CI（已完成）
+
+- **Makefile**（repo 根 **`careerpilot-local/`**）：**`make test`** → backend **`./gradlew test`**；frontend **`npm run typecheck`**、**`lint`**（ESLint，`--max-warnings 0`）、**`build`**；Python **`compileall`** + **`pytest tests/`**（mock careers HTML、`MockAiProvider` / `get_ai_provider`）+ **`ruff check tests`**。**`make build` / `dev` / `backup` / `report`** 见 **`README.md`**。
+- **前端**：**`frontend/eslint.config.js`**、**`npm run lint`**。
+- **Python**：**`requirements-dev.txt`**（pytest、ruff）、**`pytest.ini`**、**`ruff.toml`**（当前 **`extend-exclude = ["scripts"]`**，脚本仍以 **`compileall`** 做语法检查；全量 **`scripts/`** Ruff 清理可后继）。
+- **后端**：追加 **`PublicApiSmokeTest`**（公开 **`GET /api/version`**、**`GET /health/db`** 与 H2）；既有 **`ScaffoldTest`** 已覆盖大量 API / 所有权。
+- **GitHub Actions**：**`.github/workflows/ci.yml`** 三 job parallel：`backend`、`frontend`、`python`。
+
+### Day 30 — README、Demo、发布打磨（已完成）
+
+- **README**：公开仓库导向重写（前置 **Quick start**、截图占位、`docs/images/`、**`LICENSE`（MIT）**、**`SECURITY.md`**、演示八步、`docs/demo.md` / `docs/troubleshooting.md`）。
+- **`docs/demo.md`**：注册 → target company → **`job_watcher --mock-html`** → mock 面试计划 → save application → 改状态 → 周报 → backup；含 **重置/重灌 seed** 说明。
+- **`docs/troubleshooting.md`**：JWT、`DB_HOST`、Compose 端口、`SCRIPTS_*`、seed 重置等。
+- **`SECURITY.md`**：禁止提交密钥、漏洞报告指引、产品设计边界简述。
+- **`database/README.md`** + **`seed.sql`**：演示账号 **`demo@careerpilot.local`** / **`demo12345`**（ bcrypt，**仅限本地 Demo**）。
+- **`.env.example`**：补充 **`SCRIPTS_*` / `API_BASE_URL`** 注释；**`.gitignore`**：`reports/*`（保留 **`reports/.gitkeep`**）、`scripts/.venv-test/`、常见 IDE/日志。
+
+### Day 19–22 — Job watcher（已完成可用版，持续与后端 discovery 对齐）
 
 - `scripts/job_watcher.py`：通过 API 读取 active target companies，默认以 `careers_url` 为 seed 做轻量 HTML crawl；支持 `--dry-run`、`--company-id`、`--mock-html`、`--no-discovery`、`--max-discovery-pages`、`--max-discovery-depth`、`--verbose-discovery`
 - 抓取边界：继续强制跳过 LinkedIn / Indeed / Glassdoor；只处理 http(s) 公开页；允许从公司 seed 域名跳到同组织域名或常见 ATS host（Greenhouse、Lever、SmartRecruiters、Workday 等）
 - 解析能力：普通 `<a>` 链接启发式、JSON-LD `JobPosting`、页面脚本/嵌入文本里的 job URL 与相对路径；按公司 keywords / locations 打分；通过 `/api/job-leads` 创建新线索，并处理重复 URL
-- ATS/API fallback：已支持 Ashby Posting API、Workday CXS、SmartRecruiters API；同时扩展了 Greenhouse、Lever、Jobvite、SuccessFactors、Taleo、Eightfold、Rippling ATS、Pinpoint、Recruiting.com、Oracle 等常见招聘域名识别
+- ATS/API fallback：Python watcher 已支持 Ashby Posting API、Workday CXS、SmartRecruiters API；后端 app-native discovery 已支持 Ashby / Workday / SmartRecruiters / **Greenhouse boards API**；同时扩展了 Lever、Jobvite、SuccessFactors、Taleo、Eightfold、Rippling ATS、Pinpoint、Recruiting.com、Oracle 等常见招聘域名识别
 - 当前限制：仍不渲染 JavaScript-only careers site；少数强前端渲染或反爬站点仍可能漏抓。（CLI 面试计划见 **§4 Day 24**。）
 
 ### Day 23 — App 内岗位发现与失效链接清理（已完成可用版）
@@ -164,7 +183,10 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
   - **Remove closed links**：检查当前所选公司或全部 leads，清理明确失效的 unsaved links
 - 后端 discovery 与 Python watcher 已同步主要规则：公开 HTML/JSON-LD/脚本 URL、ATS API fallback、静态资源过滤、泛导航/福利页过滤、LinkedIn / Indeed / Glassdoor 跳过。
 - 重复链接处理：discovery 写入时遇到已有 `job_leads.url` 唯一索引冲突会计入 `duplicates_skipped`，不会中断整次扫描。
-- 边界：仍不渲染 JavaScript-only careers site；真实命中率取决于目标公司 career page 是否公开、是否暴露 HTML/JSON/API 数据。
+- 2026-05-10 针对真实 **JetBrains** 场景增强并验证：用户只填公司官网主页 **`https://www.jetbrains.com/`** 时，后端会自动尝试常见 career seed（`/careers/jobs/`、`/careers/`、`/jobs/`、`/company/careers/`、`/career/`），识别 JetBrains 跳转到 Greenhouse 后走 **Greenhouse boards API** 抓结构化职位；避免继续解析 Greenhouse HTML/脚本噪声；屏蔽 `my.greenhouse.io`、`job-boards.cdn.greenhouse.io`、`boards.eu.greenhouse.io`、`api-geocode-earth-proxy.greenhouse.io` 等非岗位域名。
+- 写入稳健性：`JobLeadRepository.insert/update` 会截断 `title`（255）、`url`（2048）、`location`（255），避免真实站点长标题导致 MySQL `Data truncation` 中断整次 discovery；后端测试已覆盖超长 title。
+- 实测结果：用 JetBrains 官网主页 + keywords `backend/backend engineer/kotlin/java/cloud platform` + locations `remote/united states/germany/europe`，`POST /api/job-leads/discover` 可创建 100+ 条 JetBrains Greenhouse 岗位；`keyword=backend` 返回 3 条匹配（含 `Backend Customer Success Engineer (Kotlin Ecosystem)` 两条与 `Senior Fullstack Developer (AIR Automations)`）；`Job posting` 噪声为 0。
+- 边界：仍不渲染 JavaScript-only careers site；真实命中率取决于目标公司 career page 是否公开、是否暴露 HTML/JSON/API 数据。`refresh-invalid` 对 100+ 外部链接逐条访问，功能可用但耗时可能超过脚本默认 30s timeout，UI/脚本侧后续可做进度/更长超时/批量并发优化。
 
 ### 未实现 / 仍占位
 
@@ -172,21 +194,21 @@ Self-hosted、本地优先的 **AI 求职助手**：用户配置目标公司、*
 - **AI 面试计划（产品流）**：Day 25 **REST** + Day 26 **Job leads 详情页**已可查看计划与勾选 prep；**浏览器内不直接调 LLM**（生成仍靠 CLI 或自行 **`POST`**）。**`/prep` 页面仍为 placeholder**（全局 prep 聚合入口待做）
 - **前端 Dashboard** 仍只展示 stats；follow-ups、recent leads、upcoming interviews、prep summary 的 API client 已有，页面 widget 待完善
 - **`app_settings` 表**：持久化用户偏好尚未产品化（Settings 页仅为部署/env **只读**状态）
-- **Job discovery** 仍是 HTTP HTML/JSON/API 方案；JS 渲染站点命中率有限；app-native 后端与 Python watcher 已同步主要规则，但仍是两套实现，后续可抽 fixture/测试来防止规则漂移
-- **E2E / 前端测试**、可选 **`scripts` 专用容器镜像** 尚未落地
+- **Job discovery** 仍是 HTTP HTML/JSON/API 方案；JS 渲染站点命中率有限；app-native 后端与 Python watcher 已同步主要规则，但仍是两套实现，后续可抽 fixture/测试来防止规则漂移。Greenhouse/JetBrains 真实链路已验证；`refresh-invalid` 对大量链接仍偏慢。
+- **E2E / Playwright**、前端组件单测仍为后续；可选 **`scripts` 专用容器镜像**尚未落地。（Day 29 已有 Gradle / ESLint+Vite build / **`tests/` pytest** / GitHub Actions。）
 
 ### 最近一次会话交接（模板：每次收尾覆写本小节）
 
 - **日期**：2026-05-08
-- **本次完成**：刷新 **`PROJECT_CONTEXT.md`** 以反映 **Day 27–28**：**Settings**（**`GET /api/settings/status`**、`settings/SettingsStatus.kt`、**`/settings`** 页面）、**`docs/ai-setup.md`**；**全栈 Compose**（**`docker-compose.yml`**：`mysql` + **`backend/Dockerfile`** + **`frontend/Dockerfile`**（nginx）、**`FRONTEND_PORT`**、**`.dockerignore`**、根 **`.env.example`** / **`README.md`** / **`docs/local-setup.md`** Quick Start）。
+- **本次完成**：**Day 30**——面向 GitHub 的 **`README`**、**`docs/demo.md`** / **`docs/troubleshooting.md`**、**`SECURITY.md`**、**`LICENSE`（MIT）**、演示账号 **`demo@careerpilot.local`** / **`demo12345`**（seed）、**`.gitignore`**（`reports/*`、`scripts/.venv-test/`）、截图占位 **`docs/images/`**。
 - **未完成 / 阻塞**：
   - **`/prep` 全局页**仍为 placeholder
   - App 内 **一键调 LLM** 未做（仍为 CLI / **`POST`**）
   - 宿主机 **`DB_HOST=localhost`** vs Compose 内 **`mysql`**：已在 **`.env.example`** / **`docs/local-setup.md`** 说明；仍需初学者留意
   - Dashboard 全量 widgets、**E2E**、可选 **scripts 容器化**
-- **关键路径 / 涉及文件**：**`docker-compose.yml`**、**`backend/Dockerfile`**、**`frontend/Dockerfile`**、**`frontend/nginx.conf`**、**`.dockerignore`**、**`settings/SettingsStatus.kt`**、**`frontend/src/pages/SettingsPage.tsx`**、**`docs/ai-setup.md`**、**`README.md`**
-- **已运行验证（文档依据）**：**`gradle test`**；**`npm run build`**；**`docker compose config`**；**`docker compose build backend`** / **`frontend`**（Day 28）。
-- **给下一对话的一句话**：全栈 **`docker compose up --build`** 已文档化；可继续做 **`/prep` 页**、Dashboard widgets，或 **`ai_interview_planner` 默认走 HTTP POST** 统一落库。
+- **关键路径 / 涉及文件**：**`README.md`**、**`LICENSE`**、**`SECURITY.md`**、**`docs/demo.md`**、**`docs/troubleshooting.md`**、**`database/seed.sql`**、**`.env.example`**、**`.gitignore`**；质量与 Discovery 仍见 **`Makefile`** /**`JobLeadDiscoveryService.kt`** / **`JobLeadRepository.kt`**。（本 **`PROJECT_CONTEXT.md`**）
+- **已运行验证（文档依据）**：**`make test`**（等价：backend `./gradlew test`、frontend **`npm run typecheck` + `lint` + `build`**、Python **`compileall` + `pytest` + `ruff check tests`**）；此前 **JetBrains/Greenhouse** discovery 手册验证仍有效（见上文 Day 23）。
+- **给下一对话的一句话**：公开说明书与演示路径已齐；下一步可补真实截图、**`/prep` 页**、Dashboard widgets、或 **Playwright** smoke。
 
 ---
 
@@ -239,6 +261,14 @@ cd careerpilot-local
 ./scripts/local-up.sh
 ```
 
+**聚合质量检查（Day 29）**：
+
+```bash
+cd careerpilot-local
+pip install -r scripts/requirements.txt -r requirements-dev.txt  # 首次
+make test
+```
+
 **脚本 smoke test 示例**：
 
 ```bash
@@ -261,7 +291,7 @@ python -m scripts.generate_weekly_report --dry-run
 3. **Prep / AI（剩余产品化）**：**`/prep` 占位页**接入 `GET /api/prep/tasks`（及 today）、导航；可选让 **`ai_interview_planner.py`** 默认通过 **`POST /api/job-leads/{id}/interview-plan`** 写库；App 内一键调 LLM 仍为可选增强。
 4. **Compose 运维（可选）**：生产级镜像签名、非 root、资源限制、单独 **`compose.override.yml`**；可选 **scripts** 服务镜像（当前推荐宿主机跑脚本）。
 5. **迁移（可选）**：引入 Flyway/Liquibase，与现有 `schema.sql` 初始化策略衔接。
-6. **测试**：补前端单测/E2E 或最小 Playwright smoke；后端继续扩展 repository/route 测试；scripts 补 fixture-based smoke。
+6. **测试**：补前端单测/**E2E** 或最小 Playwright smoke（Day 29 已为 **`make test`/CI** 打底）；后端可继续按需加 repository/route 细分测试；可对 **`scripts/`** 收窄 Ruff **`extend-exclude`** 并逐步修。
 
 ---
 

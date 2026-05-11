@@ -3,6 +3,8 @@
 -- Safe to run multiple times.
 
 DROP PROCEDURE IF EXISTS cp_add_column_if_missing;
+DROP PROCEDURE IF EXISTS cp_add_index_if_missing;
+DROP PROCEDURE IF EXISTS cp_add_fk_if_missing;
 DELIMITER $$
 CREATE PROCEDURE cp_add_column_if_missing(
   IN p_table VARCHAR(64),
@@ -18,6 +20,47 @@ BEGIN
     LIMIT 1
   ) THEN
     SET @cp_sql = CONCAT('ALTER TABLE `', p_table, '` ADD COLUMN `', p_column, '` ', p_definition);
+    PREPARE cp_stmt FROM @cp_sql;
+    EXECUTE cp_stmt;
+    DEALLOCATE PREPARE cp_stmt;
+  END IF;
+END$$
+
+CREATE PROCEDURE cp_add_index_if_missing(
+  IN p_table VARCHAR(64),
+  IN p_index VARCHAR(64),
+  IN p_definition TEXT
+)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = p_table
+      AND INDEX_NAME = p_index
+    LIMIT 1
+  ) THEN
+    SET @cp_sql = CONCAT('ALTER TABLE `', p_table, '` ADD ', p_definition);
+    PREPARE cp_stmt FROM @cp_sql;
+    EXECUTE cp_stmt;
+    DEALLOCATE PREPARE cp_stmt;
+  END IF;
+END$$
+
+CREATE PROCEDURE cp_add_fk_if_missing(
+  IN p_table VARCHAR(64),
+  IN p_constraint VARCHAR(64),
+  IN p_definition TEXT
+)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE()
+      AND TABLE_NAME = p_table
+      AND CONSTRAINT_NAME = p_constraint
+      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+    LIMIT 1
+  ) THEN
+    SET @cp_sql = CONCAT('ALTER TABLE `', p_table, '` ADD CONSTRAINT `', p_constraint, '` ', p_definition);
     PREPARE cp_stmt FROM @cp_sql;
     EXECUTE cp_stmt;
     DEALLOCATE PREPARE cp_stmt;
@@ -51,6 +94,15 @@ CALL cp_add_column_if_missing('reminders', 'reminder_type', 'VARCHAR(32) NOT NUL
 CALL cp_add_column_if_missing('reminders', 'due_at', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP');
 CALL cp_add_column_if_missing('reminders', 'message', 'VARCHAR(512) NULL');
 CALL cp_add_column_if_missing('reminders', 'done', 'TINYINT(1) NOT NULL DEFAULT 0');
+CALL cp_add_index_if_missing('reminders', 'ix_reminders_application_id', 'INDEX ix_reminders_application_id (application_id)');
+DELETE r FROM reminders r
+LEFT JOIN applications a ON a.id = r.application_id
+WHERE r.application_id IS NOT NULL AND a.id IS NULL;
+CALL cp_add_fk_if_missing(
+  'reminders',
+  'fk_reminders_application',
+  'FOREIGN KEY (application_id) REFERENCES applications (id) ON DELETE CASCADE'
+);
 
 -- applications (make legacy DB compatible with ApplicationRepository SELECT list)
 -- Note: some columns are NOT NULL in schema.sql; here we add as NULL / with safe defaults to avoid failing on existing rows.
@@ -66,4 +118,9 @@ CALL cp_add_column_if_missing('applications', 'notes', 'TEXT NULL');
 CALL cp_add_column_if_missing('applications', 'created_at', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP');
 CALL cp_add_column_if_missing('applications', 'updated_at', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
 
+-- AI interview plans (Day 24-26)
+CALL cp_add_column_if_missing('ai_interview_plans', 'plan_markdown', 'MEDIUMTEXT NULL');
+
 DROP PROCEDURE IF EXISTS cp_add_column_if_missing;
+DROP PROCEDURE IF EXISTS cp_add_index_if_missing;
+DROP PROCEDURE IF EXISTS cp_add_fk_if_missing;

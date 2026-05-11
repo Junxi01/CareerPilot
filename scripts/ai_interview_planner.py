@@ -375,19 +375,21 @@ def _persist_plan(
     application_id: int,
     prompt_blob: Dict[str, Any],
     plan: Dict[str, Any],
+    plan_markdown: str,
 ) -> Tuple[int, int]:
     mode = _provider_mode_label()[:16]
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO ai_interview_plans (application_id, provider_mode, prompt_json, plan_json)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO ai_interview_plans (application_id, provider_mode, prompt_json, plan_json, plan_markdown)
+        VALUES (%s, %s, %s, %s, %s)
         """,
         (
             application_id,
             mode,
             json.dumps(prompt_blob, ensure_ascii=False),
             json.dumps(plan, ensure_ascii=False),
+            plan_markdown,
         ),
     )
     plan_id = int(cur.lastrowid)
@@ -529,7 +531,13 @@ def main(argv: Optional[List[str]] = None) -> int:
                 f"[ai_interview_planner] Replacing {deleted_plans} existing interview plan(s) "
                 f"for application_id={app_id}.",
             )
-        plan_id, n_tasks = _persist_plan(conn, application_id=app_id, prompt_blob=prompt_blob, plan=plan)
+        plan_id, n_tasks = _persist_plan(
+            conn,
+            application_id=app_id,
+            prompt_blob=prompt_blob,
+            plan=plan,
+            plan_markdown=md_body,
+        )
         conn.commit()
         print(
             f"[ai_interview_planner] Saved ai_interview_plans id={plan_id} "

@@ -8,6 +8,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from scripts.common.config import get_db_config, load_env
 
 # With --compress: mysqldump stdout is piped into gzip; only .sql.gz is written (no temporary .sql).

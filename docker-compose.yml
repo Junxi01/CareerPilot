@@ -1,10 +1,7 @@
 services:
   mysql:
     image: mysql:8.0
-    container_name: careerpilot-mysql
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
@@ -36,10 +33,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: careerpilot-backend
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       # Compose network: DB hostname is the mysql service (overrides DB_HOST=localhost from .env).
       DB_HOST: mysql
@@ -79,7 +73,6 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
-    container_name: careerpilot-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3000}:80"

@@ -87,7 +87,6 @@ export function TargetCompaniesPage() {
 
   useEffect(() => {
     void refresh()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function validateLocal(next: FormState): Record<string, string> {
