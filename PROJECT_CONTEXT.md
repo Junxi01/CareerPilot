@@ -1,8 +1,7 @@
-# PROJECT_CONTEXT — CareerPilot Local 交接说明
+# PROJECT_CONTEXT — CareerPilot Local 项目说明
 
-> **给 AI / 协作者**：在新 Cursor 对话开始时，请先阅读本文件、`README.md`，再按需查看 `backend/`、`frontend/`、`database/`、`scripts/`、`docs/`。  
+> **给协作者**：开始开发前，请先阅读本文件、`README.md`，再按需查看 `backend/`、`frontend/`、`database/`、`scripts/`、`docs/`。  
 > **仓库根目录**：本项目的开发与 Git 根目录为 **`careerpilot-local/`**。上一层桌面文件夹 **`Career Pilot Local/`** 仅工作区入口（可选 `README.md`），Gradle/npm 等命令须在 **`careerpilot-local/`** 或其子目录执行。  
-> **接力规则**：项目内已配置 Cursor Rule **`.cursor/rules/careerpilot-project-context-handoff.mdc`**（`alwaysApply: true`）。用户说出 **每日收尾口令** 时，Cursor 应**直接编辑本文件**中「进度 / 下一步 / 最近一次会话交接」等段落，无需再单独下「改文件」指令。
 
 ---
 
@@ -295,37 +294,7 @@ python -m scripts.generate_weekly_report --dry-run
 
 ---
 
-## 8. Cursor 会话接力：每日收尾时如何「自动」更新本文件
-
-### 8.1 现实限制（必读）
-
-Cursor **无法在后台默默监视**你每天何时写完代码；所谓「自动化」在项目里的落地方式是：
-
-- **仓库规则** `.cursor/rules/careerpilot-project-context-handoff.mdc` 已开启 `alwaysApply: true`，模型在会话里会看到「收尾时要改 `PROJECT_CONTEXT.md`」的义务。
-- 你在 **同一天收工时必须发一条口令**（或粘贴下方收尾指令）。推荐 **固定用同一句**：**「今天的任务结束了」**。  
-→ 随后在**同一会话或新会话**开头说一次 **「请先读 PROJECT_CONTEXT.md」**（见 §9），即可衔接。
-
-若你希望更强约束，可把「今天的任务结束了」粘在 Composer/Agent **独立一条消息**末尾发送，以减少模型漏执行文件更新的概率。
-
-### 8.2 收尾口令示例（任选其一）
-
-- 「今天的任务结束了」
-- 「今日收工」「结束今天」「今天先到这里」「EOD」「更新交接文档」「更新 PROJECT_CONTEXT」
-
-### 8.3 收尾时请 Cursor 执行的「命令」（复制到对话框即可）
-
-下面这些不是 Shell 指令，是给 **Cursor Agent / Chat** 的自然语言指令，用于触发对 **本 Markdown 文件的更新**：
-
-```text
-今天的任务结束了。请严格执行 .cursor/rules/careerpilot-project-context-handoff.mdc 与 PROJECT_CONTEXT.md §8：
-1) 根据今天实际改动与仓库现状更新 PROJECT_CONTEXT.md：§4 进度列表、§7 下一步清单、§4 小节「最近一次会话交接」；
-2) 不要编造未完成的功能；不清楚处标「待核对」；
-3) 若改了对外行为，检查 README/.env.example 是否需一并说明（只做必要的最小补充）。
-```
-
-规则文件：**`careerpilot-local/.cursor/rules/careerpilot-project-context-handoff.mdc`**（已向 Cursor 设为 `alwaysApply: true`）。
-
-### 8.4 收尾时 Assistant 必须在 `PROJECT_CONTEXT.md` 内更新的块
+## 8. 交接文档维护
 
 | 更新块 | 内容 |
 |--------|------|
@@ -334,21 +303,11 @@ Cursor **无法在后台默默监视**你每天何时写完代码；所谓「自
 | §7 | 下一步：勾掉已完成，追加明日事项；保留优先级 |
 | 其他 | 仅在栈/部署/密钥约定变动时改写 §2、§5、§6 |
 
-### 8.5 不推荐的做法
+### 8.1 不推荐的做法
 
 - 依赖大脑记忆而不改文档 → 新开对话极易丢上下文。
 - 把 `.env` 真值贴进文档 → **禁止**，只能写占位名或变量名。
 - 在另一台机器/分支未 pulled 前就覆写整块 §4 → 应先 `git pull` 或写明「基于分支 X、commit Y」（可选）。
-
----
-
-## 9. 新对话推荐开场白（复制给 Cursor）
-
-```
-请阅读 careerpilot-local/PROJECT_CONTEXT.md、careerpilot-local/README.md，
-并浏览与当前任务相关的目录（例如 backend/ 或 frontend/）。
-在遵守 PROJECT_CONTEXT 中「重要约定」的前提下，我们要实现：<你的具体任务>。
-```
 
 同一对话内需更新文档时：**「请先按 §8 更新 PROJECT_CONTEXT.md，然后再继续。」**
 

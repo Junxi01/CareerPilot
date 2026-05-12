@@ -141,7 +141,7 @@ GitHub Actions: **`.github/workflows/ci.yml`**.
 
 ```
 careerpilot-local/
-  PROJECT_CONTEXT.md       # maintainer / Cursor handoff (zh + en context)
+  PROJECT_CONTEXT.md       # maintainer handoff context
   SECURITY.md
   LICENSE
   README.md                # this file
