@@ -227,6 +227,27 @@ body {
   margin-top: 0.15rem;
 }
 
+.cp-dashboard-widgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.cp-dashboard-row {
+  padding: 0.7rem 0.75rem;
+}
+
+.cp-dashboard-row a {
+  color: #1d4ed8;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.cp-dashboard-row a:hover {
+  text-decoration: underline;
+}
+
 /* --- Day 14: Job Leads page helpers --- */
 
 .cp-jobleads-filters {
